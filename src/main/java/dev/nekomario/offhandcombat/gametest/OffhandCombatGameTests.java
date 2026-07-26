@@ -138,12 +138,16 @@ public final class OffhandCombatGameTests {
                 "an empty off hand should be rejected server-side");
 
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
-        player.setGameMode(GameType.SPECTATOR);
+        helper.assertTrue(player.gameMode.changeGameModeForPlayer(GameType.SPECTATOR),
+                "the test fixture should enter spectator mode");
+        helper.assertTrue(player.isSpectator(),
+                "the test fixture should report spectator mode");
         OffhandAttackResult unavailable = OffhandAttackService.INSTANCE.request(player, validTarget);
         helper.assertValueEqual(unavailable.status(), OffhandAttackStatus.PLAYER_UNAVAILABLE,
                 "a spectator should be rejected server-side");
 
-        player.setGameMode(GameType.SURVIVAL);
+        helper.assertTrue(player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL),
+                "the test fixture should return to survival mode");
         OffhandAttackResult self = OffhandAttackService.INSTANCE.request(player, player);
         helper.assertValueEqual(self.status(), OffhandAttackStatus.INVALID_TARGET,
                 "self-targeting should be rejected server-side");
@@ -185,33 +189,35 @@ public final class OffhandCombatGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = EMPTY, timeoutTicks = 100)
+    @GameTest(template = EMPTY, timeoutTicks = 40)
     public static void offhandAttackCapsMainCooldownUsingMainSpeed(GameTestHelper helper) {
         ServerPlayer player = makeSurvivalPlayer(helper);
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_AXE));
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
         Zombie target = spawnTarget(helper);
 
-        helper.runAfterDelay(40, () -> {
-            helper.assertTrue(player.getAttackStrengthScale(0.0F) >= 0.99F,
-                    "the main hand should be fully charged before the off-hand attack");
+        player.resetAttackStrengthTicker();
+        for (int tick = 0; tick < 40; tick++) {
+            player.tick();
+        }
+        helper.assertTrue(player.getAttackStrengthScale(0.0F) >= 0.99F,
+                "the main hand should be fully charged before the off-hand attack");
 
-            double mainAttackSpeed = player.getAttributeValue(Attributes.ATTACK_SPEED);
-            int expectedCap = CooldownMath.oppositeHandCap(
-                    mainAttackSpeed, OffHandCombatConfig.OPPOSITE_HAND_COOLDOWN.getAsDouble());
-            float expectedStrength = CooldownMath.strength(expectedCap, 0.0F, mainAttackSpeed);
+        double mainAttackSpeed = player.getAttributeValue(Attributes.ATTACK_SPEED);
+        int expectedCap = CooldownMath.oppositeHandCap(
+                mainAttackSpeed, OffHandCombatConfig.OPPOSITE_HAND_COOLDOWN.getAsDouble());
+        float expectedStrength = CooldownMath.strength(expectedCap, 0.0F, mainAttackSpeed);
 
-            OffhandAttackAccess access = (OffhandAttackAccess) player;
-            access.ofc$setOffhandAttackStrengthTicker(100);
-            OffhandAttackResult result = OffhandAttackService.INSTANCE.request(player, target);
-            float actualStrength = player.getAttackStrengthScale(0.0F);
+        OffhandAttackAccess access = (OffhandAttackAccess) player;
+        access.ofc$setOffhandAttackStrengthTicker(100);
+        OffhandAttackResult result = OffhandAttackService.INSTANCE.request(player, target);
+        float actualStrength = player.getAttackStrengthScale(0.0F);
 
-            helper.assertValueEqual(result.status(), OffhandAttackStatus.SUCCESS,
-                    "the off-hand attack should execute");
-            helper.assertTrue(Math.abs(actualStrength - expectedStrength) < 0.0001F,
-                    "an off-hand attack should cap main-hand readiness using the main-hand attack speed");
-            helper.succeed();
-        });
+        helper.assertValueEqual(result.status(), OffhandAttackStatus.SUCCESS,
+                "the off-hand attack should execute");
+        helper.assertTrue(Math.abs(actualStrength - expectedStrength) < 0.0001F,
+                "an off-hand attack should cap main-hand readiness using the main-hand attack speed");
+        helper.succeed();
     }
 
     private static ServerPlayer makeSurvivalPlayer(GameTestHelper helper) {
