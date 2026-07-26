@@ -7,9 +7,11 @@ import dev.nekomario.offhandcombat.api.OffhandAttackRequest;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.api.OffhandAttackSource;
 import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
+import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.combat.OffhandAttackService;
 import dev.nekomario.offhandcombat.config.OffHandCombatConfig;
 import dev.nekomario.offhandcombat.util.CooldownMath;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -17,16 +19,16 @@ import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.AttributeMap;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-
-import java.util.UUID;
 
 @GameTestHolder(OffHandCombat.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -163,7 +165,35 @@ public final class OffhandCombatGameTests {
         farTarget.setPos(player.getX() + 10.0D, player.getY(), player.getZ());
         OffhandAttackResult distant = OffhandAttackService.INSTANCE.request(player, farTarget);
         helper.assertValueEqual(distant.status(), OffhandAttackStatus.OUT_OF_RANGE,
-                "entity interaction range should be enforced server-side");
+                "vanilla entity interaction range should be enforced server-side");
+        helper.succeed();
+    }
+
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void deadAndOccludedTargetsAreRejected(GameTestHelper helper) {
+        ServerPlayer player = makeSurvivalPlayer(helper);
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+
+        Zombie deadTarget = spawnTarget(helper);
+        deadTarget.setHealth(0.0F);
+        OffhandAttackResult dead = OffhandAttackService.INSTANCE.request(player, deadTarget);
+        helper.assertValueEqual(dead.status(), OffhandAttackStatus.INVALID_TARGET,
+                "a dead target should be rejected server-side");
+
+        Zombie occludedTarget = spawnTarget(helper);
+        occludedTarget.setPos(player.getX() + 3.0D, player.getY(), player.getZ());
+        BlockPos wall = BlockPos.containing(player.getX() + 1.5D, player.getY(), player.getZ());
+        helper.getLevel().setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
+        helper.getLevel().setBlockAndUpdate(wall.above(), Blocks.STONE.defaultBlockState());
+
+        helper.assertTrue(player.canInteractWithEntity(occludedTarget, 0.0D),
+                "the occluded fixture must remain inside vanilla entity interaction range");
+        helper.assertTrue(!player.hasLineOfSight(occludedTarget),
+                "the wall fixture must block server line of sight");
+
+        OffhandAttackResult occluded = OffhandAttackService.INSTANCE.request(player, occludedTarget);
+        helper.assertValueEqual(occluded.status(), OffhandAttackStatus.NO_LINE_OF_SIGHT,
+                "an occluded target should be rejected when line-of-sight validation is enabled");
         helper.succeed();
     }
 
@@ -218,6 +248,59 @@ public final class OffhandCombatGameTests {
 
         helper.assertTrue(Math.abs(actualStrength - expectedStrength) < 0.0001F,
                 "an off-hand attack should cap main-hand readiness using the main-hand attack speed");
+        helper.succeed();
+    }
+
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void offhandStackChangeResetsReadiness(GameTestHelper helper) {
+        ServerPlayer player = makeSurvivalPlayer(helper);
+        OffhandAttackAccess access = (OffhandAttackAccess) player;
+
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+        player.tick();
+        access.ofc$setOffhandAttackStrengthTicker(100);
+
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_AXE));
+        player.tick();
+        helper.assertValueEqual(access.ofc$getOffhandAttackStrengthTicker(), 1,
+                "changing the off-hand stack should reset readiness before the tick increment");
+
+        access.ofc$setOffhandAttackStrengthTicker(20);
+        player.tick();
+        helper.assertValueEqual(access.ofc$getOffhandAttackStrengthTicker(), 21,
+                "an unchanged off-hand stack should continue charging without another reset");
+        helper.succeed();
+    }
+
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void offhandAttackDoesNotMutateLiveAttributeMap(GameTestHelper helper) {
+        ServerPlayer player = makeSurvivalPlayer(helper);
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_AXE));
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+        Zombie target = spawnTarget(helper);
+
+        AttributeMap liveAttributes = player.getAttributes();
+        double attackDamageBefore = player.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        double attackSpeedBefore = player.getAttributeValue(Attributes.ATTACK_SPEED);
+
+        OffhandAttackAccess access = (OffhandAttackAccess) player;
+        access.ofc$setOffhandAttackStrengthTicker(100);
+        OffhandAttackResult result = OffhandAttackService.INSTANCE.request(player, target);
+
+        helper.assertValueEqual(result.status(), OffhandAttackStatus.SUCCESS,
+                "the off-hand attack should execute for the live-attribute audit");
+        helper.assertTrue(player.getAttributes() == liveAttributes,
+                "the live player AttributeMap object must not be replaced");
+        helper.assertValueEqual(player.getAttributeValue(Attributes.ATTACK_DAMAGE), attackDamageBefore,
+                "the live main-hand attack-damage value must be unchanged after an off-hand attack");
+        helper.assertValueEqual(player.getAttributeValue(Attributes.ATTACK_SPEED), attackSpeedBefore,
+                "the live main-hand attack-speed value must be unchanged after an off-hand attack");
+
+        var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        helper.assertTrue(state.activeOffhandAttributes() == null,
+                "the temporary copied off-hand attribute view must be cleared after execution");
+        helper.assertTrue(!state.attackingWithOffhand(),
+                "the transient off-hand attack flag must be cleared after execution");
         helper.succeed();
     }
 
