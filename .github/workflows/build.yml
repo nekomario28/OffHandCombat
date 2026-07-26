@@ -25,7 +25,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum validate_port.py .github/workflows/build.yml | tee static-audit.log
+          sha256sum \
+            validate_port.py \
+            .github/workflows/build.yml \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
+            | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
           sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
       - name: Unit tests and build
