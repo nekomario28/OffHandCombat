@@ -3,6 +3,7 @@ name: Diagnose audit document hash
 on:
   push:
     branches: [ 1.21.1-neoforge ]
+  pull_request:
 
 permissions:
   contents: read
