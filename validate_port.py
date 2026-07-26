@@ -49,9 +49,9 @@ for required in [
     "gradle-version: '9.2.1'",
     'python3 validate_port.py',
     'gradle --no-daemon clean test build',
-    '9 tests are now running',
-    '9 GAME TESTS COMPLETE',
-    'All 9 required tests passed :)',
+    '10 tests are now running',
+    '10 GAME TESTS COMPLETE',
+    'All 10 required tests passed :)',
     'bash .ci/client-world-e2e.sh 240',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
@@ -152,6 +152,9 @@ for pattern, description in {
     'KeyConflictContext.IN_GAME': 'in-game-only dedicated key context',
     'minecraft.screen != null': 'explicit GUI input suppression',
     'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
+    'target.level() != player.level()': 'public API foreign-Level target rejection',
+    'player.level().getEntity(targetId) != target': 'public API exact Entity identity validation',
+    'preserving the executed result': 'truthful result preservation after After-event failure',
 }.items():
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
@@ -173,6 +176,17 @@ for required in [
 ]:
     if required not in game_test_java:
         errors.append(f'GameTest suite missing required regression: {required}')
+
+public_api_game_test = (
+    ROOT / 'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java'
+).read_text(encoding='utf-8')
+for required in [
+    'publicApiRejectsNullAndForeignLevelEntities',
+    'Level.NETHER',
+    'OffhandAttackStatus.INVALID_TARGET',
+]:
+    if required not in public_api_game_test:
+        errors.append(f'public API GameTest missing required regression: {required}')
 
 if errors:
     print('VALIDATION FAILED')
