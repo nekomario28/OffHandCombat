@@ -49,10 +49,7 @@ neoForge {
             client()
             gameDirectory = project.file('run')
             sourceSet = sourceSets.clientTest
-            programArguments = [
-                    '--username', 'OffhandE2E',
-                    '--quickPlaySingleplayer', 'SmokeWorld'
-            ]
+            programArguments = ['--username', 'OffhandE2E']
             systemProperty 'offhandcombat.clientWorldE2E', 'true'
         }
         server {
