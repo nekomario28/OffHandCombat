@@ -47,6 +47,7 @@ neoForge {
         }
         clientWorldE2E {
             client()
+            gameDirectory = project.file('run')
             sourceSet = sourceSets.clientTest
             programArguments = [
                     '--username', 'OffhandE2E',
