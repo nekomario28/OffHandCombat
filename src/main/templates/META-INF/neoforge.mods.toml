@@ -29,3 +29,19 @@ type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="bettercombat"
+type="discouraged"
+reason="Both mods implement dual wielding and modify attack input, timing, cooldown, reach, or animation semantics. Use one combat authority unless a dedicated adapter is installed."
+versionRange=""
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="combatify"
+type="discouraged"
+reason="Combatify replaces the vanilla combat model while Off Hand Combat delegates to the vanilla Player.attack pipeline. Concurrent use is unsupported without a dedicated adapter."
+versionRange=""
+ordering="NONE"
+side="BOTH"
