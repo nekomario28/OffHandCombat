@@ -29,6 +29,8 @@ jobs:
             validate_port.py \
             .github/workflows/build.yml \
             src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java \
+            src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
             | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
           sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
@@ -88,9 +90,9 @@ jobs:
           set -euo pipefail
           set -o pipefail
           timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
-          grep -Fq '9 tests are now running' gametest.log
-          grep -Fq '9 GAME TESTS COMPLETE' gametest.log
-          grep -Fq 'All 9 required tests passed :)' gametest.log
+          grep -Fq '10 tests are now running' gametest.log
+          grep -Fq '10 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 10 required tests passed :)' gametest.log
       - name: Ensure virtual display
         shell: bash
         run: |
