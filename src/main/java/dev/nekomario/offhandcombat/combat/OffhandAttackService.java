@@ -31,8 +31,20 @@ public final class OffhandAttackService implements OffhandCombatApi {
     @Override
     public OffhandAttackResult request(ServerPlayer player, Entity target) {
         OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        long sequence = state.nextApiSequence();
+        long gameTime = player.level().getGameTime();
+        int targetId = target == null ? -1 : target.getId();
+
+        // Entity IDs are local to a Level. Resolving a foreign Entity only by its numeric ID
+        // could otherwise select an unrelated entity with the same ID in the player's Level.
+        if (target == null || target.level() != player.level()
+                || player.level().getEntity(targetId) != target) {
+            return OffhandAttackResult.rejected(
+                    sequence, targetId, OffhandAttackStatus.INVALID_TARGET, gameTime);
+        }
+
         return request(player, new OffhandAttackRequest(
-                state.nextApiSequence(), target.getId(), OffhandAttackSource.PUBLIC_API));
+                sequence, targetId, OffhandAttackSource.PUBLIC_API));
     }
 
     @Override
@@ -138,7 +150,15 @@ public final class OffhandAttackService implements OffhandCombatApi {
         OffhandAttackResult result = new OffhandAttackResult(
                 request.sequence(), request.targetId(), OffhandAttackStatus.SUCCESS,
                 healthBefore, healthAfter, durabilityBefore, durabilityAfter, gameTime);
-        NeoForge.EVENT_BUS.post(new OffhandAttackEvent.After(context, result));
+        try {
+            NeoForge.EVENT_BUS.post(new OffhandAttackEvent.After(context, result));
+        } catch (RuntimeException exception) {
+            // The attack and its side effects already occurred. Preserve the truthful SUCCESS result
+            // instead of reporting INTERNAL_ERROR after execution and inviting an unsafe retry.
+            OffHandCombat.LOGGER.error(
+                    "Off-hand after-event listener failed after sequence {} for {}; preserving the executed result",
+                    request.sequence(), player.getGameProfile().getName(), exception);
+        }
         return result;
     }
 
