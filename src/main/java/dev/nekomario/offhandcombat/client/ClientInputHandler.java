@@ -25,11 +25,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientInputHandler {
+    private static boolean runtimeReadyLogged;
+
     private ClientInputHandler() {
     }
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
+        if (!runtimeReadyLogged) {
+            runtimeReadyLogged = true;
+            OffHandCombat.LOGGER.info("Off Hand Combat client runtime ready");
+        }
         while (ClientModEvents.OFFHAND_ATTACK.get().consumeClick()) {
             trySendAttack(OffhandInputSource.DEDICATED_KEY);
         }

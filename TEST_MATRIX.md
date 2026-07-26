@@ -1,14 +1,16 @@
 # Off Hand Combat 1.21.1 test matrix
 
-Legend: **A** automated in CI, **G** suitable for GameTest/integration automation, **M** manual modpack test.
+Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manual modpack test.
 
 ## Release gate
 
 - [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping and static UUID state.
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
 - [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
-- [ ] **M** Client starts and a world loads.
-- [ ] **M** Dedicated server starts without client-class loading.
+- [ ] **A** Physical client reaches its first client tick under Xvfb.
+- [ ] **M** A client world loads.
+- [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
+- [x] **G** GameTest Server discovers and passes two required off-hand combat tests.
 - [ ] **M** One real multiplayer off-hand attack succeeds and produces exactly one durability change.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid input.
@@ -19,7 +21,7 @@ Legend: **A** automated in CI, **G** suitable for GameTest/integration automatio
 - [x] **A** Repeated latest sequence is classified duplicate.
 - [x] **A** Lower sequence is stale and a higher sequence advances the window.
 - [x] **A** Failure status wire IDs are unique and stable round trips.
-- [ ] **G/M** Duplicate payload replays the cached result without a second attack.
+- [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
 - [ ] **G/M** New sequences sent in one rate-limit window are rejected without execution.
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
@@ -42,10 +44,12 @@ Legend: **A** automated in CI, **G** suitable for GameTest/integration automatio
 - [ ] **G/M** attack damage and attack speed are sourced from the off-hand weapon.
 - [ ] **G/M** critical attribution uses the off-hand weapon and occurs once.
 - [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occur once.
-- [ ] **G/M** durability is changed exactly once on the off-hand item.
+- [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
+- [x] **G** an immediate attack rejected by vanilla hurt immunity does not consume durability again.
 - [ ] **G/M** damage, knockback, fire aspect and other enchantment hooks occur exactly once.
-- [ ] **G/M** the main-hand stack and live attribute map are identical before/after execution.
-- [ ] **G/M** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
+- [x] **G** main-hand durability remains unchanged during an off-hand attack.
+- [ ] **G/M** the live attribute map is identical before/after execution.
+- [x] **G** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
 
 ## Input priority
 
