@@ -83,9 +83,9 @@ jobs:
           set -euo pipefail
           set -o pipefail
           timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
-          grep -Fq '6 tests are now running' gametest.log
-          grep -Fq '6 GAME TESTS COMPLETE' gametest.log
-          grep -Fq 'All 6 required tests passed :)' gametest.log
+          grep -Fq '9 tests are now running' gametest.log
+          grep -Fq '9 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 9 required tests passed :)' gametest.log
       - name: Ensure virtual display
         shell: bash
         run: |
@@ -118,6 +118,8 @@ jobs:
           ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/gametest/'
           ! jar tf "$jar_file" | grep -Fq 'data/offhandcombat/structure/gametest/'
           ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="bettercombat"'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="combatify"'
           sha256sum "$jar_file"
       - name: Upload JARs and reports
         if: always()
