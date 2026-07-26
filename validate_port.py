@@ -32,11 +32,23 @@ except Exception as exc:
     errors.append(f'neoforge.mods.toml template: {exc}')
 
 workflow = (ROOT / '.github/workflows/build.yml').read_text(encoding='utf-8')
-for required in ['actions/setup-java@v4', "java-version: '21'", "gradle-version: '9.2.1'", 'python3 validate_port.py', 'gradle --no-daemon clean test build']:
+for required in [
+    'actions/setup-java@v4',
+    "java-version: '21'",
+    "gradle-version: '9.2.1'",
+    'python3 validate_port.py',
+    'gradle --no-daemon clean test build',
+    'All 6 required tests passed :)',
+    "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
+]:
     if required not in workflow:
         errors.append(f'workflow missing required fragment: {required}')
 
-for source_root in [ROOT / 'src/main/java', ROOT / 'src/test/java']:
+for source_root in [
+    ROOT / 'src/main/java',
+    ROOT / 'src/gameTest/java',
+    ROOT / 'src/test/java',
+]:
     for path in sorted(source_root.rglob('*.java')):
         text = path.read_text(encoding='utf-8')
         package_match = re.search(r'^package\s+([\w.]+);', text, re.MULTILINE)
@@ -94,10 +106,20 @@ for pattern, description in required_patterns.items():
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
 
+if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/gametest').exists():
+    errors.append('GameTest Java sources must not be in the production source set')
+if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
+    errors.append('GameTest structures must not be in production resources')
+
 if errors:
     print('VALIDATION FAILED')
     for error in errors:
         print(f'- {error}')
     sys.exit(1)
 
-print(f'VALIDATION PASSED: {len(source_paths)} main Java files; metadata, resources, workflow, legal and architecture checks OK')
+game_test_paths = list((ROOT / 'src/gameTest/java').rglob('*.java'))
+print(
+    f'VALIDATION PASSED: {len(source_paths)} main Java files and '
+    f'{len(game_test_paths)} isolated GameTest Java files; '
+    'metadata, resources, workflow, legal and architecture checks OK'
+)

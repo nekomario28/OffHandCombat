@@ -80,8 +80,12 @@ jobs:
       - name: GameTest server
         shell: bash
         run: |
+          set -euo pipefail
           set -o pipefail
           timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
+          grep -Fq '6 tests are now running' gametest.log
+          grep -Fq '6 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 6 required tests passed :)' gametest.log
       - name: Ensure virtual display
         shell: bash
         run: |
@@ -108,6 +112,8 @@ jobs:
           do
             jar tf "$jar_file" | grep -Fqx "$entry"
           done
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/gametest/'
+          ! jar tf "$jar_file" | grep -Fq 'data/offhandcombat/structure/gametest/'
           sha256sum "$jar_file"
       - name: Upload JARs and reports
         if: always()

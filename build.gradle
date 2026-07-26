@@ -18,6 +18,13 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
 neoForge {
     version = project.neo_version
 
@@ -25,6 +32,8 @@ neoForge {
         mappingsVersion = project.parchment_mappings_version
         minecraftVersion = project.parchment_minecraft_version
     }
+
+    addModdingDependenciesTo sourceSets.gameTest
 
     runs {
         client {
@@ -38,6 +47,7 @@ neoForge {
         }
         gameTestServer {
             type = 'gameTestServer'
+            sourceSet = sourceSets.gameTest
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         configureEach {
@@ -49,11 +59,14 @@ neoForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.gameTest)
         }
     }
 }
 
 configurations {
+    gameTestImplementation.extendsFrom implementation
+    gameTestRuntimeOnly.extendsFrom runtimeOnly
     runtimeClasspath.extendsFrom localRuntime
 }
 
