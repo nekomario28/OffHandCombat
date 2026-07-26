@@ -50,8 +50,11 @@ client_e2e_script = (ROOT / '.ci/client-world-e2e.sh').read_text(encoding='utf-8
 for required in ['Off Hand Combat client world E2E passed', 'runClientWorldE2E']:
     if required not in client_e2e_script:
         errors.append(f'client E2E script missing required fragment: {required}')
-if '--quickPlaySingleplayer' not in (ROOT / 'build.gradle').read_text(encoding='utf-8'):
-    errors.append('client E2E run is missing --quickPlaySingleplayer')
+if "gameDirectory = project.file('run')" not in (ROOT / 'build.gradle').read_text(encoding='utf-8'):
+    errors.append('client E2E run is not pinned to the shared run directory')
+client_e2e_java = (ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java').read_text(encoding='utf-8')
+if 'createWorldOpenFlows().openWorld' not in client_e2e_java:
+    errors.append('client E2E harness is missing deterministic world opening')
 
 source_roots = [
     ROOT / 'src/main/java',
