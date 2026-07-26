@@ -10,7 +10,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Physical client reaches its first client tick under Xvfb.
 - [ ] **M** A client world loads.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
-- [x] **G** GameTest Server discovers and passes two required off-hand combat tests.
+- [ ] **G** GameTest Server discovers and passes six required off-hand combat tests.
 - [ ] **M** One real multiplayer off-hand attack succeeds and produces exactly one durability change.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid input.
@@ -22,7 +22,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Lower sequence is stale and a higher sequence advances the window.
 - [x] **A** Failure status wire IDs are unique and stable round trips.
 - [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
-- [ ] **G/M** New sequences sent in one rate-limit window are rejected without execution.
+- [ ] **G** A fresh sequence in one rate-limit window is rejected without execution.
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [ ] **M** Reconnect starts a fresh replay window and has no retained UUID state.
@@ -34,14 +34,14 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 
 - [x] **A** Vanilla-style full cooldown ticks are calculated from attack speed.
 - [x] **A** Invalid attack speed produces zero readiness/cap.
-- [ ] **G/M** main → off applies configured opposite-hand cap once.
-- [ ] **G/M** off → main applies configured opposite-hand cap once.
+- [ ] **G** main → off applies the configured opposite-hand cap once using off-hand attack speed.
+- [ ] **G** off → main applies the configured opposite-hand cap once using main-hand attack speed.
 - [ ] **M** rapid clicks do not desynchronize client and server readiness.
 - [ ] **M** swapping the off-hand stack resets off-hand readiness.
 
 ## Attribution and exactly-once effects
 
-- [ ] **G/M** attack damage and attack speed are sourced from the off-hand weapon.
+- [ ] **G** attack damage and attack speed are sourced from the off-hand weapon.
 - [ ] **G/M** critical attribution uses the off-hand weapon and occurs once.
 - [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occur once.
 - [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
@@ -64,12 +64,14 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 
 ## Server validation
 
-- [ ] **G/M** invalid, removed, dead and self target IDs are rejected.
-- [ ] **G/M** spectator/unavailable player is rejected.
-- [ ] **G/M** target in another dimension cannot be selected by ID.
-- [ ] **G/M** entity interaction range is enforced independently of block reach.
+- [ ] **G** self and removed target IDs are rejected.
+- [ ] **G/M** dead target IDs are rejected.
+- [ ] **G** spectator/unavailable player is rejected.
+- [ ] **M** target in another dimension cannot be selected by ID.
+- [ ] **G** entity interaction range is enforced independently of block reach.
 - [ ] **G/M** line of sight is enforced when enabled.
-- [ ] **G/M** ineligible item and blacklisted enchantment are rejected server-side.
+- [ ] **G** an ineligible off-hand item is rejected server-side.
+- [ ] **G/M** a blacklisted enchantment is rejected server-side.
 
 ## Multiplayer observation
 
