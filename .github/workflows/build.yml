@@ -22,12 +22,33 @@ jobs:
         with:
           gradle-version: '9.2.1'
       - name: Static port audit
-        run: python3 validate_port.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 validate_port.py
+          sha256sum --check PORT_MANIFEST.sha256
       - name: Unit tests and build
         shell: bash
         run: |
           set -o pipefail
           gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+      - name: Verify distributable JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar_file="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -print -quit)"
+          test -n "$jar_file"
+          for entry in \
+            LICENSE \
+            META-INF/neoforge.mods.toml \
+            offhandcombat.mixins.json \
+            dev/nekomario/offhandcombat/OffHandCombat.class \
+            assets/offhandcombat/lang/en_us.json \
+            assets/offhandcombat/lang/ja_jp.json
+          do
+            jar tf "$jar_file" | grep -Fqx "$entry"
+          done
+          sha256sum "$jar_file"
       - name: Upload JARs and reports
         if: always()
         uses: actions/upload-artifact@v4

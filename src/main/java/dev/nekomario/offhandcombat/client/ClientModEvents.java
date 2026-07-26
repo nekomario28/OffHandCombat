@@ -10,7 +10,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.util.Lazy;
 import org.lwjgl.glfw.GLFW;
 
-@EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientModEvents {
     public static final Lazy<KeyMapping> OFFHAND_ATTACK = Lazy.of(() -> new KeyMapping(
             "key.offhandcombat.attack",
