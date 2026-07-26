@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -99,7 +100,7 @@ public final class OffhandAttackService implements OffhandCombatApi {
             return OffhandAttackResult.rejected(request.sequence(), request.targetId(),
                     OffhandAttackStatus.INVALID_TARGET, gameTime);
         }
-        if (!player.isWithinEntityInteractionRange(target, 0.0D)) {
+        if (!isWithinEntityReach(player, target)) {
             return OffhandAttackResult.rejected(request.sequence(), request.targetId(),
                     OffhandAttackStatus.OUT_OF_RANGE, gameTime);
         }
@@ -140,6 +141,17 @@ public final class OffhandAttackService implements OffhandCombatApi {
                 healthBefore, healthAfter, durabilityBefore, durabilityAfter, gameTime);
         NeoForge.EVENT_BUS.post(new OffhandAttackEvent.After(context, result));
         return result;
+    }
+
+    private static boolean isWithinEntityReach(ServerPlayer player, Entity target) {
+        double reach = player.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE);
+        if (!Double.isFinite(reach) || reach < 0.0D) {
+            return false;
+        }
+        double targetRadius = Math.max(target.getBbWidth(), target.getBbHeight()) * 0.5D;
+        double allowedDistance = reach + targetRadius;
+        return player.getEyePosition().distanceToSqr(target.getBoundingBox().getCenter())
+                <= allowedDistance * allowedDistance;
     }
 
     private static OffhandAttackResult finishNetwork(OffhandCombatState state, OffhandAttackResult result) {
