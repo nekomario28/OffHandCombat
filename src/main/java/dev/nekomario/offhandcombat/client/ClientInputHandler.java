@@ -65,7 +65,7 @@ public final class ClientInputHandler {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         ClientPacketListener connection = minecraft.getConnection();
-        if (player == null || connection == null || player.isUsingItem()) {
+        if (minecraft.screen != null || player == null || connection == null || player.isUsingItem()) {
             return false;
         }
         if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)) {
