@@ -29,6 +29,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class OffhandClientWorldE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.clientWorldE2E";
+    private static final String WORLD_NAME = "SmokeWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 2400;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
@@ -54,6 +55,8 @@ public final class OffhandClientWorldE2EHarness {
 
             Minecraft minecraft = Minecraft.getInstance();
             if (phase == Phase.WAITING_FOR_WORLD) {
+                openWorldWhenClientIsReady(minecraft);
+            } else if (phase == Phase.OPENING_WORLD) {
                 beginServerSetupWhenWorldIsReady(minecraft);
             } else if (phase == Phase.WAITING_FOR_CLIENT_SYNC) {
                 armServerAttackWhenClientIsSynchronized(minecraft);
@@ -67,6 +70,25 @@ public final class OffhandClientWorldE2EHarness {
         } catch (Throwable throwable) {
             fail("client harness exception", throwable);
         }
+    }
+
+    private static void openWorldWhenClientIsReady(Minecraft minecraft) {
+        if (minecraft.level != null) {
+            phase = Phase.OPENING_WORLD;
+            return;
+        }
+        if (clientTicks < 20 || minecraft.screen == null) {
+            return;
+        }
+        if (!minecraft.getLevelSource().levelExists(WORLD_NAME)) {
+            fail("copied E2E world was not visible in the configured game directory: " + WORLD_NAME);
+            return;
+        }
+
+        phase = Phase.OPENING_WORLD;
+        OffHandCombat.LOGGER.info("Opening copied Off Hand Combat E2E world: {}", WORLD_NAME);
+        minecraft.createWorldOpenFlows().openWorld(WORLD_NAME,
+                () -> fail("opening copied E2E world was aborted"));
     }
 
     private static void beginServerSetupWhenWorldIsReady(Minecraft minecraft) {
@@ -243,6 +265,7 @@ public final class OffhandClientWorldE2EHarness {
 
     private enum Phase {
         WAITING_FOR_WORLD,
+        OPENING_WORLD,
         SETTING_UP_SERVER,
         WAITING_FOR_CLIENT_SYNC,
         ARMING_SERVER,
