@@ -32,6 +32,49 @@ jobs:
         run: |
           set -o pipefail
           gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+      - name: Dedicated server smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run run/server
+          printf 'eula=true\n' > run/eula.txt
+          printf 'eula=true\n' > run/server/eula.txt
+
+          setsid gradle --no-daemon runServer > server-smoke.log 2>&1 &
+          server_process=$!
+          ready=0
+          latest_log=''
+
+          for _ in $(seq 1 180); do
+            latest_log="$(find run -type f -path '*/logs/latest.log' -print -quit 2>/dev/null || true)"
+            if [[ -n "$latest_log" ]] && grep -Fq 'Done (' "$latest_log"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_process" 2>/dev/null; then
+              cat server-smoke.log
+              [[ -n "$latest_log" ]] && cat "$latest_log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          kill -INT -- "-$server_process" 2>/dev/null || true
+          for _ in $(seq 1 20); do
+            kill -0 "$server_process" 2>/dev/null || break
+            sleep 1
+          done
+          kill -KILL -- "-$server_process" 2>/dev/null || true
+          wait "$server_process" 2>/dev/null || true
+
+          if [[ "$ready" -ne 1 ]]; then
+            cat server-smoke.log
+            [[ -n "$latest_log" ]] && cat "$latest_log"
+            exit 1
+          fi
+
+          ! grep -Eiq 'mixin apply failed|exception in thread|fatal error|failed to load mod' "$latest_log"
+          grep -F 'Done (' "$latest_log"
       - name: Verify distributable JAR
         shell: bash
         run: |
@@ -56,6 +99,8 @@ jobs:
           name: offhandcombat-1.21.1-${{ github.sha }}
           path: |
             build.log
+            server-smoke.log
+            run/logs/latest.log
             build/libs/*.jar
             build/reports/tests/test/**
           if-no-files-found: error
