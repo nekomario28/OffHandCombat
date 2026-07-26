@@ -3,6 +3,7 @@ name: Diagnose manifest
 on:
   push:
     branches: [ 1.21.1-neoforge ]
+  pull_request:
 
 permissions:
   contents: read
