@@ -12,14 +12,16 @@ Use `OffhandCombatApi.get()`; do not access Mixins or attachment classes.
 
 Requests are executed on the logical server. The service performs the same eligibility, target, reach, line-of-sight and readiness validation used by the network path.
 
+The `request(ServerPlayer, Entity)` overload accepts only the exact Entity instance currently registered in the player's `Level`. A null, removed, unregistered or foreign-Level Entity returns `INVALID_TARGET`. Entity IDs are Level-local and must never be used to transfer an Entity reference across dimensions.
+
 ## Readiness
 
 `OffhandCombatApi#getReadiness` returns `HandReadiness(mainHand, offHand)`.
 
 ## Events
 
-- `OffhandAttackEvent.Before`: cancellable after validation, before execution.
-- `OffhandAttackEvent.After`: emitted after one successful authoritative attack-path execution.
+- `OffhandAttackEvent.Before`: cancellable after validation, before execution. An exception prevents execution and is reported as `INTERNAL_ERROR`.
+- `OffhandAttackEvent.After`: emitted after one successful authoritative attack-path execution. If an After listener throws after side effects occurred, the failure is logged and the executed `SUCCESS` result is preserved so callers do not retry an already-applied attack.
 
 ## Weapon compatibility
 
