@@ -1,0 +1,35 @@
+name: Diagnose E2E manifest
+
+on:
+  push:
+    branches: [ 1.21.1-neoforge ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare validation and source manifest
+        shell: bash
+        run: |
+          set +e
+          python3 validate_port.py > e2e-manifest-diagnostics.txt 2>&1
+          echo "validate_status=$?" >> e2e-manifest-diagnostics.txt
+          while read -r expected path; do
+            if [[ ! -f "$path" ]]; then
+              echo "MISSING $path expected=$expected" >> e2e-manifest-diagnostics.txt
+              continue
+            fi
+            actual="$(sha256sum "$path" | cut -d' ' -f1)"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "MISMATCH $path expected=$expected actual=$actual" >> e2e-manifest-diagnostics.txt
+            fi
+          done < PORT_MANIFEST.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-manifest-diagnostics-${{ github.sha }}
+          path: e2e-manifest-diagnostics.txt
