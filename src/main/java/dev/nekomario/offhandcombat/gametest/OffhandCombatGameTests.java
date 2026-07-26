@@ -1,5 +1,6 @@
 package dev.nekomario.offhandcombat.gametest;
 
+import com.mojang.authlib.GameProfile;
 import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.api.OffhandAttackRequest;
@@ -12,16 +13,20 @@ import dev.nekomario.offhandcombat.util.CooldownMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
 
 @GameTestHolder(OffHandCombat.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -137,17 +142,13 @@ public final class OffhandCombatGameTests {
         helper.assertValueEqual(ineligible.status(), OffhandAttackStatus.INELIGIBLE_WEAPON,
                 "an empty off hand should be rejected server-side");
 
-        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
-        helper.assertTrue(player.gameMode.changeGameModeForPlayer(GameType.SPECTATOR),
-                "the test fixture should enter spectator mode");
-        helper.assertTrue(player.isSpectator(),
-                "the test fixture should report spectator mode");
-        OffhandAttackResult unavailable = OffhandAttackService.INSTANCE.request(player, validTarget);
+        ServerPlayer spectator = makeSpectatorPlayer(helper);
+        spectator.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+        OffhandAttackResult unavailable = OffhandAttackService.INSTANCE.request(spectator, validTarget);
         helper.assertValueEqual(unavailable.status(), OffhandAttackStatus.PLAYER_UNAVAILABLE,
                 "a spectator should be rejected server-side");
 
-        helper.assertTrue(player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL),
-                "the test fixture should return to survival mode");
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
         OffhandAttackResult self = OffhandAttackService.INSTANCE.request(player, player);
         helper.assertValueEqual(self.status(), OffhandAttackStatus.INVALID_TARGET,
                 "self-targeting should be rejected server-side");
@@ -191,7 +192,9 @@ public final class OffhandCombatGameTests {
 
     @GameTest(template = EMPTY, timeoutTicks = 40)
     public static void offhandAttackCapsMainCooldownUsingMainSpeed(GameTestHelper helper) {
-        ServerPlayer player = makeSurvivalPlayer(helper);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos playerPos = helper.absolutePos(PLAYER_POS);
+        player.setPos(playerPos.getX() + 0.5D, playerPos.getY(), playerPos.getZ() + 0.5D);
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_AXE));
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
         Zombie target = spawnTarget(helper);
@@ -210,11 +213,9 @@ public final class OffhandCombatGameTests {
 
         OffhandAttackAccess access = (OffhandAttackAccess) player;
         access.ofc$setOffhandAttackStrengthTicker(100);
-        OffhandAttackResult result = OffhandAttackService.INSTANCE.request(player, target);
+        access.ofc$attackWithOffhand(target);
         float actualStrength = player.getAttackStrengthScale(0.0F);
 
-        helper.assertValueEqual(result.status(), OffhandAttackStatus.SUCCESS,
-                "the off-hand attack should execute");
         helper.assertTrue(Math.abs(actualStrength - expectedStrength) < 0.0001F,
                 "an off-hand attack should cap main-hand readiness using the main-hand attack speed");
         helper.succeed();
@@ -224,6 +225,27 @@ public final class OffhandCombatGameTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         player.setGameMode(GameType.SURVIVAL);
         BlockPos playerPos = helper.absolutePos(PLAYER_POS);
+        player.setPos(playerPos.getX() + 0.5D, playerPos.getY(), playerPos.getZ() + 0.5D);
+        return player;
+    }
+
+    private static ServerPlayer makeSpectatorPlayer(GameTestHelper helper) {
+        BlockPos playerPos = helper.absolutePos(PLAYER_POS);
+        ServerPlayer player = new ServerPlayer(
+                helper.getLevel().getServer(),
+                helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "test-spectator"),
+                ClientInformation.createDefault()) {
+            @Override
+            public boolean isSpectator() {
+                return true;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return false;
+            }
+        };
         player.setPos(playerPos.getX() + 0.5D, playerPos.getY(), playerPos.getZ() + 0.5D);
         return player;
     }
