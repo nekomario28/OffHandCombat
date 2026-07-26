@@ -10,7 +10,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **A** Physical client reaches its first client tick under Xvfb.
 - [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
-- [x] **G** GameTest Server discovers and passes nine required off-hand combat tests.
+- [x] **G** GameTest Server discovers and passes ten required off-hand combat tests.
 - [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
 - [ ] **M** One remote multiplayer off-hand attack succeeds and produces exactly one durability change.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical input.
@@ -52,6 +52,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** main-hand durability remains unchanged during an off-hand attack.
 - [x] **G** the live AttributeMap object and main-hand attack damage/speed values are identical before and after execution; the copied off-hand view is cleared.
 - [x] **G** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
+- [x] **A** an After-event listener failure cannot rewrite an already-executed attack as `INTERNAL_ERROR`; the failure is logged and the executed result is preserved.
 
 ## Input priority
 
@@ -70,7 +71,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** self and removed target IDs are rejected.
 - [x] **G** dead target IDs are rejected.
 - [x] **G** spectator/unavailable player is rejected.
-- [ ] **M** target in another dimension cannot be selected by ID.
+- [x] **G** the public Entity API rejects null, unregistered and foreign-Level instances before resolving their Level-local numeric ID.
 - [x] **G** vanilla `Player.canInteractWithEntity` entity reach is enforced.
 - [x] **G** line of sight is enforced when enabled.
 - [x] **G** an ineligible off-hand item is rejected server-side.
