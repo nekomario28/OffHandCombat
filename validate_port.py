@@ -39,12 +39,19 @@ for required in [
     'python3 validate_port.py',
     'gradle --no-daemon clean test build',
     'All 6 required tests passed :)',
-    'Off Hand Combat client world E2E passed',
+    'bash .ci/client-world-e2e.sh 240',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
 ]:
     if required not in workflow:
         errors.append(f'workflow missing required fragment: {required}')
+
+client_e2e_script = (ROOT / '.ci/client-world-e2e.sh').read_text(encoding='utf-8')
+for required in ['Off Hand Combat client world E2E passed', 'runClientWorldE2E']:
+    if required not in client_e2e_script:
+        errors.append(f'client E2E script missing required fragment: {required}')
+if '--quickPlaySingleplayer' not in (ROOT / 'build.gradle').read_text(encoding='utf-8'):
+    errors.append('client E2E run is missing --quickPlaySingleplayer')
 
 source_roots = [
     ROOT / 'src/main/java',
