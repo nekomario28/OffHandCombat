@@ -99,4 +99,5 @@ if grep -Eiq 'mixin apply failed|exception in thread|fatal error|failed to load 
 fi
 
 grep -F "Off Hand Combat client world loaded for E2E" "$LOG_FILE"
+grep -F "Off Hand Combat client GUI suppression E2E passed" "$LOG_FILE"
 grep -F "$SUCCESS_MARKER" "$LOG_FILE"
