@@ -7,6 +7,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.common.util.Lazy;
 import org.lwjgl.glfw.GLFW;
 
@@ -14,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 public final class ClientModEvents {
     public static final Lazy<KeyMapping> OFFHAND_ATTACK = Lazy.of(() -> new KeyMapping(
             "key.offhandcombat.attack",
+            KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_V,
             "key.categories.offhandcombat"
