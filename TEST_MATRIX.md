@@ -4,8 +4,9 @@ Legend: **A** automated in CI, **G** suitable for GameTest/integration automatio
 
 ## Release gate
 
-- [ ] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping and static UUID state.
-- [ ] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
+- [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping and static UUID state.
+- [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
+- [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
 - [ ] **M** Client starts and a world loads.
 - [ ] **M** Dedicated server starts without client-class loading.
 - [ ] **M** One real multiplayer off-hand attack succeeds and produces exactly one durability change.
