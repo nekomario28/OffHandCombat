@@ -1,19 +1,19 @@
 # Off Hand Combat 1.21.1 test matrix
 
-Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manual modpack test.
+Legend: **A** automated in CI, **G** GameTest/integration automation, **R** researched compatibility policy, **M** manual modpack test.
 
 ## Release gate
 
-- [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping and static UUID state.
+- [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping, custom reach approximation and static UUID state.
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
 - [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
 - [x] **A** Physical client reaches its first client tick under Xvfb.
 - [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
-- [x] **G** GameTest Server discovers and passes six required off-hand combat tests.
+- [x] **G** GameTest Server discovers and passes nine required off-hand combat tests.
 - [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
 - [ ] **M** One remote multiplayer off-hand attack succeeds and produces exactly one durability change.
-- [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority.
+- [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical input.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
 ## Protocol and lifecycle
@@ -39,23 +39,24 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **G** main → off applies the configured opposite-hand cap once using off-hand attack speed.
 - [x] **G** off → main applies the configured opposite-hand cap once using main-hand attack speed.
 - [ ] **M** rapid physical clicks do not desynchronize client and server readiness.
-- [ ] **M** swapping the off-hand stack resets off-hand readiness.
+- [x] **G** swapping the off-hand stack resets off-hand readiness while an unchanged stack continues charging.
 
 ## Attribution and exactly-once effects
 
 - [x] **G** attack damage and attack speed are sourced from the off-hand weapon.
 - [ ] **G/M** critical attribution uses the off-hand weapon and occurs once.
-- [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occurs once.
+- [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occur once.
 - [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
 - [x] **G** an immediate attack rejected by vanilla hurt immunity does not consume durability again.
 - [ ] **G/M** damage, knockback, fire aspect and other enchantment hooks occur exactly once.
 - [x] **G** main-hand durability remains unchanged during an off-hand attack.
-- [ ] **G/M** the live attribute map is identical before/after execution.
+- [x] **G** the live AttributeMap object and main-hand attack damage/speed values are identical before and after execution; the copied off-hand view is cleared.
 - [x] **G** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
 
 ## Input priority
 
 - [x] **G** the registered dedicated key triggers a real in-world client → server off-hand attack without replacing vanilla use.
+- [x] **G** the dedicated key uses the `IN_GAME` conflict context and produces no request, result, damage or durability change while a Screen is open.
 - [ ] **M** legacy use-key mode only converts the OFF_HAND pass.
 - [ ] **M** shield priority.
 - [ ] **M** bow, crossbow and trident use.
@@ -67,11 +68,11 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 ## Server validation
 
 - [x] **G** self and removed target IDs are rejected.
-- [ ] **G/M** dead target IDs are rejected.
+- [x] **G** dead target IDs are rejected.
 - [x] **G** spectator/unavailable player is rejected.
 - [ ] **M** target in another dimension cannot be selected by ID.
-- [x] **G** entity interaction range is enforced independently of block reach.
-- [ ] **G/M** line of sight is enforced when enabled.
+- [x] **G** vanilla `Player.canInteractWithEntity` entity reach is enforced.
+- [x] **G** line of sight is enforced when enabled.
 - [x] **G** an ineligible off-hand item is rejected server-side.
 - [ ] **G/M** a blacklisted enchantment is rejected server-side.
 
@@ -83,8 +84,8 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 
 ## Compatibility packs
 
-- [ ] **M** Better Combat.
-- [ ] **M** Combatify.
+- [x] **R** Better Combat is declared `discouraged`: its upstream compatibility policy identifies dual wield, reach, attack timing/cooldown and attack-key modifications as semantic conflicts.
+- [x] **R** Combatify is declared `discouraged`: it replaces the vanilla combat model and has no Off Hand Combat authority adapter.
 - [ ] **M** a modded weapon using vanilla attack modifiers.
 - [ ] **M** a weapon with custom damage hooks.
 - [ ] **M** attribute/quality/rarity mod; bonuses remain after attack and reconnect.
@@ -92,4 +93,4 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [ ] **M** inventory/equipment event mod receives no synthetic swap events.
 - [ ] **M** performance/animation Mixin mod has no startup conflict or hand tremor.
 
-Any incompatibility discovered here must become either a tagged exclusion, a public compatibility rule/adapter, or explicit documentation before release.
+Any incompatibility discovered here must become either a tagged exclusion, a public compatibility rule/adapter, a NeoForge metadata warning/block, or explicit documentation before release.
