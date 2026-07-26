@@ -7,7 +7,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping and static UUID state.
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
 - [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
-- [ ] **A** Physical client reaches its first client tick under Xvfb.
+- [x] **A** Physical client reaches its first client tick under Xvfb.
 - [ ] **M** A client world loads.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes two required off-hand combat tests.
