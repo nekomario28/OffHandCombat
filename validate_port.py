@@ -23,13 +23,24 @@ for line in (ROOT / 'gradle.properties').read_text(encoding='utf-8').splitlines(
         continue
     key, value = line.split('=', 1)
     props[key.strip()] = value.strip()
-metadata = (ROOT / 'src/main/templates/META-INF/neoforge.mods.toml').read_text(encoding='utf-8')
+
+metadata_template = (ROOT / 'src/main/templates/META-INF/neoforge.mods.toml').read_text(encoding='utf-8')
+metadata = metadata_template
 for key, value in props.items():
     metadata = metadata.replace('${' + key + '}', value)
 try:
     tomllib.loads(metadata)
 except Exception as exc:
     errors.append(f'neoforge.mods.toml template: {exc}')
+
+for mod_id in ['bettercombat', 'combatify']:
+    dependency_fragment = f'modId="{mod_id}"'
+    if dependency_fragment not in metadata_template:
+        errors.append(f'neoforge.mods.toml missing compatibility policy for {mod_id}')
+if metadata_template.count('type="discouraged"') < 2:
+    errors.append('neoforge.mods.toml must warn for both researched combat-authority conflicts')
+if metadata_template.count('reason=') < 2:
+    errors.append('neoforge.mods.toml compatibility warnings require user-facing reasons')
 
 workflow = (ROOT / '.github/workflows/build.yml').read_text(encoding='utf-8')
 for required in [
@@ -38,23 +49,41 @@ for required in [
     "gradle-version: '9.2.1'",
     'python3 validate_port.py',
     'gradle --no-daemon clean test build',
-    'All 6 required tests passed :)',
+    '9 tests are now running',
+    '9 GAME TESTS COMPLETE',
+    'All 9 required tests passed :)',
     'bash .ci/client-world-e2e.sh 240',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
+    "grep -Fq 'modId=\"bettercombat\"'",
+    "grep -Fq 'modId=\"combatify\"'",
 ]:
     if required not in workflow:
         errors.append(f'workflow missing required fragment: {required}')
 
 client_e2e_script = (ROOT / '.ci/client-world-e2e.sh').read_text(encoding='utf-8')
-for required in ['Off Hand Combat client world E2E passed', 'runClientWorldE2E']:
+for required in [
+    'Off Hand Combat client world E2E passed',
+    'Off Hand Combat client GUI suppression E2E passed',
+    'runClientWorldE2E',
+]:
     if required not in client_e2e_script:
         errors.append(f'client E2E script missing required fragment: {required}')
-if "gameDirectory = project.file('run')" not in (ROOT / 'build.gradle').read_text(encoding='utf-8'):
+
+build_script = (ROOT / 'build.gradle').read_text(encoding='utf-8')
+if "gameDirectory = project.file('run')" not in build_script:
     errors.append('client E2E run is not pinned to the shared run directory')
-client_e2e_java = (ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java').read_text(encoding='utf-8')
-if 'createWorldOpenFlows().openWorld' not in client_e2e_java:
-    errors.append('client E2E harness is missing deterministic world opening')
+
+client_e2e_java = (
+    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java'
+).read_text(encoding='utf-8')
+for required in [
+    'createWorldOpenFlows().openWorld',
+    'GUI suppression E2E passed',
+    'lastNetworkSequence() != 0L',
+]:
+    if required not in client_e2e_java:
+        errors.append(f'client E2E harness missing required fragment: {required}')
 
 source_roots = [
     ROOT / 'src/main/java',
@@ -83,8 +112,13 @@ for source_root in source_roots:
                 errors.append(f'{actual}: unbalanced {opening}{closing}')
 
 for required in [
-    'LICENSE', 'THIRD_PARTY_NOTICES.md', 'AUDIT_1.21.1.md', 'TEST_MATRIX.md',
-    'docs/PROTOCOL.md', 'docs/PUBLIC_API.md'
+    'LICENSE',
+    'THIRD_PARTY_NOTICES.md',
+    'AUDIT_1.21.1.md',
+    'TEST_MATRIX.md',
+    'docs/PROTOCOL.md',
+    'docs/PUBLIC_API.md',
+    'docs/COMPATIBILITY.md',
 ]:
     if not (ROOT / required).is_file():
         errors.append(f'missing {required}')
@@ -103,6 +137,7 @@ for pattern, description in {
     'getInventory().offhand.set': 'live off-hand inventory swap',
     'Map<UUID': 'static UUID combat state',
     'static final Map<UUID': 'static UUID combat state',
+    'getEyePosition().distanceToSqr(target.getBoundingBox().getCenter())': 'custom entity-reach approximation',
 }.items():
     if pattern in source_text:
         errors.append(f'forbidden pattern remains ({description}): {pattern}')
@@ -114,6 +149,9 @@ for pattern, description in {
     'OffhandAttackEvent.Before': 'before attack event',
     'OffhandAttackEvent.After': 'after attack event',
     'OffhandInputArbitrationRegistry': 'input arbitration API',
+    'KeyConflictContext.IN_GAME': 'in-game-only dedicated key context',
+    'minecraft.screen != null': 'explicit GUI input suppression',
+    'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
 }.items():
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
@@ -124,6 +162,17 @@ if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
     errors.append('GameTest structures must not be in production resources')
 if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/clienttest').exists():
     errors.append('client E2E Java sources must not be in the production source set')
+
+game_test_java = (
+    ROOT / 'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java'
+).read_text(encoding='utf-8')
+for required in [
+    'deadAndOccludedTargetsAreRejected',
+    'offhandStackChangeResetsReadiness',
+    'offhandAttackDoesNotMutateLiveAttributeMap',
+]:
+    if required not in game_test_java:
+        errors.append(f'GameTest suite missing required regression: {required}')
 
 if errors:
     print('VALIDATION FAILED')
@@ -137,5 +186,5 @@ print(
     f'VALIDATION PASSED: {len(source_paths)} main Java files, '
     f'{len(game_test_paths)} isolated GameTest Java files and '
     f'{len(client_test_paths)} isolated client E2E Java files; '
-    'metadata, resources, workflow, legal and architecture checks OK'
+    'metadata, resources, workflow, legal, compatibility and architecture checks OK'
 )
