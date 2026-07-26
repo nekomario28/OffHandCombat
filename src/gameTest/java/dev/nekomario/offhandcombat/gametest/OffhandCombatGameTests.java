@@ -253,7 +253,9 @@ public final class OffhandCombatGameTests {
 
     @GameTest(template = EMPTY, timeoutTicks = 40)
     public static void offhandStackChangeResetsReadiness(GameTestHelper helper) {
-        ServerPlayer player = makeSurvivalPlayer(helper);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos playerPos = helper.absolutePos(PLAYER_POS);
+        player.setPos(playerPos.getX() + 0.5D, playerPos.getY(), playerPos.getZ() + 0.5D);
         OffhandAttackAccess access = (OffhandAttackAccess) player;
 
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
