@@ -10,6 +10,8 @@ import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.UUID;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -31,11 +33,13 @@ public final class OffhandClientWorldE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.clientWorldE2E";
     private static final String WORLD_NAME = "SmokeWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 2400;
+    private static final int GUI_SUPPRESSION_TICKS = 20;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile int targetId = -1;
     private static volatile OffhandAttackResult firstResult;
     private static int clientTicks;
+    private static int guiSuppressionDeadline;
 
     private OffhandClientWorldE2EHarness() {
     }
@@ -59,7 +63,9 @@ public final class OffhandClientWorldE2EHarness {
             } else if (phase == Phase.OPENING_WORLD) {
                 beginServerSetupWhenWorldIsReady(minecraft);
             } else if (phase == Phase.WAITING_FOR_CLIENT_SYNC) {
-                armServerAttackWhenClientIsSynchronized(minecraft);
+                beginGuiSuppressionCheckWhenClientIsSynchronized(minecraft);
+            } else if (phase == Phase.WAITING_FOR_GUI_SUPPRESSION) {
+                verifyGuiSuppressionAndArmServer(minecraft);
             } else if (phase == Phase.ARMED) {
                 triggerDedicatedKeyAttack(minecraft);
             } else if (phase == Phase.WAITING_FOR_FIRST_RESULT) {
@@ -136,7 +142,7 @@ public final class OffhandClientWorldE2EHarness {
         });
     }
 
-    private static void armServerAttackWhenClientIsSynchronized(Minecraft minecraft) {
+    private static void beginGuiSuppressionCheckWhenClientIsSynchronized(Minecraft minecraft) {
         if (minecraft.level == null || minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             return;
         }
@@ -145,26 +151,62 @@ public final class OffhandClientWorldE2EHarness {
             return;
         }
 
-        phase = Phase.ARMING_SERVER;
+        minecraft.hitResult = new EntityHitResult(target);
+        minecraft.setScreen(new Screen(Component.literal("Off Hand Combat E2E GUI suppression")) {
+        });
+        KeyMapping.click(ClientModEvents.OFFHAND_ATTACK.get().getKey());
+        guiSuppressionDeadline = clientTicks + GUI_SUPPRESSION_TICKS;
+        phase = Phase.WAITING_FOR_GUI_SUPPRESSION;
+    }
+
+    private static void verifyGuiSuppressionAndArmServer(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null
+                || clientTicks < guiSuppressionDeadline) {
+            return;
+        }
+        if (minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE).lastClientResult() != null) {
+            fail("dedicated key produced a network result while a GUI was open");
+            return;
+        }
+
+        minecraft.setScreen(null);
+        phase = Phase.VERIFYING_GUI_SUPPRESSION;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
         server.execute(() -> {
             try {
                 ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-                if (player == null) {
-                    fail("integrated server player disappeared before attack");
+                Entity target = player == null ? null : player.serverLevel().getEntity(targetId);
+                if (player == null || !(target instanceof LivingEntity living)) {
+                    fail("server state was unavailable after GUI suppression check");
                     return;
                 }
+
+                var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+                if (state.lastNetworkSequence() != 0L || state.lastNetworkResult() != null) {
+                    fail("dedicated key sent a network request while a GUI was open");
+                    return;
+                }
+                if (Float.compare(living.getHealth(), living.getMaxHealth()) != 0) {
+                    fail("GUI-suppressed key changed target health");
+                    return;
+                }
+                if (player.getOffhandItem().getDamageValue() != 0) {
+                    fail("GUI-suppressed key consumed off-hand durability");
+                    return;
+                }
+
+                OffHandCombat.LOGGER.info("Off Hand Combat client GUI suppression E2E passed");
                 ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
                 phase = Phase.ARMED;
             } catch (Throwable throwable) {
-                fail("failed to arm off-hand cooldown", throwable);
+                fail("GUI suppression verification exception", throwable);
             }
         });
     }
 
     private static void triggerDedicatedKeyAttack(Minecraft minecraft) {
-        if (minecraft.level == null || minecraft.player == null) {
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) {
             return;
         }
         Entity target = minecraft.level.getEntity(targetId);
@@ -268,7 +310,8 @@ public final class OffhandClientWorldE2EHarness {
         OPENING_WORLD,
         SETTING_UP_SERVER,
         WAITING_FOR_CLIENT_SYNC,
-        ARMING_SERVER,
+        WAITING_FOR_GUI_SUPPRESSION,
+        VERIFYING_GUI_SUPPRESSION,
         ARMED,
         WAITING_FOR_FIRST_RESULT,
         WAITING_FOR_REPLAY_RESULT,
