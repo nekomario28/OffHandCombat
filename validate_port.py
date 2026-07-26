@@ -39,16 +39,20 @@ for required in [
     'python3 validate_port.py',
     'gradle --no-daemon clean test build',
     'All 6 required tests passed :)',
+    'Off Hand Combat client world E2E passed',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
+    "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
 ]:
     if required not in workflow:
         errors.append(f'workflow missing required fragment: {required}')
 
-for source_root in [
+source_roots = [
     ROOT / 'src/main/java',
     ROOT / 'src/gameTest/java',
+    ROOT / 'src/clientTest/java',
     ROOT / 'src/test/java',
-]:
+]
+for source_root in source_roots:
     for path in sorted(source_root.rglob('*.java')):
         text = path.read_text(encoding='utf-8')
         package_match = re.search(r'^package\s+([\w.]+);', text, re.MULTILINE)
@@ -81,7 +85,7 @@ if 'Copyright (c) 2017 Arekkuusu' not in license_text or 'MIT License' not in li
 
 source_paths = list((ROOT / 'src/main/java').rglob('*.java'))
 source_text = '\n'.join(path.read_text(encoding='utf-8') for path in source_paths)
-forbidden = {
+for pattern, description in {
     'ServerboundInteractPacket': 'vanilla packet mutation',
     'invulnerableTime = 0': 'invulnerability-frame reset',
     'lastHurt = 0': 'damage-state reset',
@@ -89,20 +93,18 @@ forbidden = {
     'getInventory().offhand.set': 'live off-hand inventory swap',
     'Map<UUID': 'static UUID combat state',
     'static final Map<UUID': 'static UUID combat state',
-}
-for pattern, description in forbidden.items():
+}.items():
     if pattern in source_text:
         errors.append(f'forbidden pattern remains ({description}): {pattern}')
 
-required_patterns = {
+for pattern, description in {
     'AttachmentType.builder': 'Data Attachment state',
     '.optional()': 'optional protocol negotiation',
     'classifyNetworkSequence': 'request replay classification',
     'OffhandAttackEvent.Before': 'before attack event',
     'OffhandAttackEvent.After': 'after attack event',
     'OffhandInputArbitrationRegistry': 'input arbitration API',
-}
-for pattern, description in required_patterns.items():
+}.items():
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
 
@@ -110,6 +112,8 @@ if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/gametest').exists():
     errors.append('GameTest Java sources must not be in the production source set')
 if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
     errors.append('GameTest structures must not be in production resources')
+if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/clienttest').exists():
+    errors.append('client E2E Java sources must not be in the production source set')
 
 if errors:
     print('VALIDATION FAILED')
@@ -118,8 +122,10 @@ if errors:
     sys.exit(1)
 
 game_test_paths = list((ROOT / 'src/gameTest/java').rglob('*.java'))
+client_test_paths = list((ROOT / 'src/clientTest/java').rglob('*.java'))
 print(
-    f'VALIDATION PASSED: {len(source_paths)} main Java files and '
-    f'{len(game_test_paths)} isolated GameTest Java files; '
+    f'VALIDATION PASSED: {len(source_paths)} main Java files, '
+    f'{len(game_test_paths)} isolated GameTest Java files and '
+    f'{len(client_test_paths)} isolated client E2E Java files; '
     'metadata, resources, workflow, legal and architecture checks OK'
 )

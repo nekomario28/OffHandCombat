@@ -23,6 +23,10 @@ sourceSets {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += output + compileClasspath
     }
+    clientTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + compileClasspath
+    }
 }
 
 neoForge {
@@ -34,11 +38,21 @@ neoForge {
     }
 
     addModdingDependenciesTo sourceSets.gameTest
+    addModdingDependenciesTo sourceSets.clientTest
 
     runs {
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        clientWorldE2E {
+            client()
+            sourceSet = sourceSets.clientTest
+            programArguments = [
+                    '--username', 'OffhandE2E',
+                    '--quickPlaySingleplayer', 'SmokeWorld'
+            ]
+            systemProperty 'offhandcombat.clientWorldE2E', 'true'
         }
         server {
             server()
@@ -60,6 +74,7 @@ neoForge {
         "${mod_id}" {
             sourceSet(sourceSets.main)
             sourceSet(sourceSets.gameTest)
+            sourceSet(sourceSets.clientTest)
         }
     }
 }
@@ -67,6 +82,8 @@ neoForge {
 configurations {
     gameTestImplementation.extendsFrom implementation
     gameTestRuntimeOnly.extendsFrom runtimeOnly
+    clientTestImplementation.extendsFrom implementation
+    clientTestRuntimeOnly.extendsFrom runtimeOnly
     runtimeClasspath.extendsFrom localRuntime
 }
 

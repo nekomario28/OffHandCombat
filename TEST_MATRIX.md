@@ -8,12 +8,13 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
 - [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
 - [x] **A** Physical client reaches its first client tick under Xvfb.
-- [ ] **M** A client world loads.
+- [x] **G** A copied dedicated-server world loads through `--quickPlaySingleplayer` on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes six required off-hand combat tests.
-- [ ] **M** One real multiplayer off-hand attack succeeds and produces exactly one durability change.
+- [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
+- [ ] **M** One remote multiplayer off-hand attack succeeds and produces exactly one durability change.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority.
-- [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid input.
+- [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
 ## Protocol and lifecycle
 
@@ -22,13 +23,14 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Lower sequence is stale and a higher sequence advances the window.
 - [x] **A** Failure status wire IDs are unique and stable round trips.
 - [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
+- [x] **G** The integrated client receives the cached result after a duplicate payload while authoritative health/durability remain unchanged.
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [ ] **M** Reconnect starts a fresh replay window and has no retained UUID state.
 - [ ] **M** Death/respawn starts clean transient state.
 - [ ] **M** Dimension movement neither duplicates nor loses active state.
-- [ ] **M** Packet spam and sequence replay cannot multiply damage/durability.
+- [ ] **M** Packet spam and sequence replay cannot multiply damage/durability under latency/reordering.
 
 ## Cross-hand cooldown
 
@@ -36,14 +38,14 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Invalid attack speed produces zero readiness/cap.
 - [x] **G** main → off applies the configured opposite-hand cap once using off-hand attack speed.
 - [x] **G** off → main applies the configured opposite-hand cap once using main-hand attack speed.
-- [ ] **M** rapid clicks do not desynchronize client and server readiness.
+- [ ] **M** rapid physical clicks do not desynchronize client and server readiness.
 - [ ] **M** swapping the off-hand stack resets off-hand readiness.
 
 ## Attribution and exactly-once effects
 
 - [x] **G** attack damage and attack speed are sourced from the off-hand weapon.
 - [ ] **G/M** critical attribution uses the off-hand weapon and occurs once.
-- [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occur once.
+- [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occurs once.
 - [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
 - [x] **G** an immediate attack rejected by vanilla hurt immunity does not consume durability again.
 - [ ] **G/M** damage, knockback, fire aspect and other enchantment hooks occur exactly once.
@@ -53,7 +55,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 
 ## Input priority
 
-- [ ] **M** dedicated key works without replacing vanilla use.
+- [x] **G** the registered dedicated key triggers a real in-world client → server off-hand attack without replacing vanilla use.
 - [ ] **M** legacy use-key mode only converts the OFF_HAND pass.
 - [ ] **M** shield priority.
 - [ ] **M** bow, crossbow and trident use.
@@ -75,8 +77,8 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 
 ## Multiplayer observation
 
-- [ ] **M** two clients observe the same one-time swing/damage result.
-- [ ] **M** two players maintain independent cooldown and sequence state.
+- [ ] **M** two remote clients observe the same one-time swing/damage result.
+- [ ] **M** two remote players maintain independent cooldown and sequence state.
 - [ ] **M** high latency/reordering produces no duplicate execution.
 
 ## Compatibility packs
