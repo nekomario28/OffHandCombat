@@ -8,7 +8,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **M** manu
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
 - [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
 - [x] **A** Physical client reaches its first client tick under Xvfb.
-- [x] **G** A copied dedicated-server world loads through `--quickPlaySingleplayer` on an integrated client/server.
+- [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes six required off-hand combat tests.
 - [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
