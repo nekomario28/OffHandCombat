@@ -1,0 +1,40 @@
+name: Bootstrap audited NeoForge port
+
+on:
+  push:
+    branches:
+      - 1.21.1-neoforge
+
+permissions:
+  contents: write
+
+concurrency:
+  group: offhandcombat-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staged branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and materialize audited source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/offhand-port-source.tar.gz"
+          cat .bootstrap/source.part* | base64 --decode > "$archive"
+          echo "56239d93e4f59fb9e5425cfb02544b95c3e4de49f6be601614c8e84e0f0c6a3b  $archive" | sha256sum --check --status
+
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -xzf "$archive" -C .
+          python3 validate_port.py
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Port OffHandCombat to NeoForge 1.21.1"
+          git push origin HEAD:1.21.1-neoforge
