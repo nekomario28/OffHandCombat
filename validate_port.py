@@ -90,12 +90,14 @@ for required in [
     "gameDirectory = project.file('run/remote-server')",
     "gameDirectory = project.file('run/remote-client')",
     'sourceSet = sourceSets.remoteTest',
-    "'--quickPlayMultiplayer', '127.0.0.1:25565'",
+    "programArguments = ['--username', 'OffhandRemote']",
     "systemProperty 'offhandcombat.remoteServerE2E', 'true'",
     "systemProperty 'offhandcombat.remoteClientE2E', 'true'",
 ]:
     if required not in build_script:
         errors.append(f'build script missing required isolated run fragment: {required}')
+if '--quickPlayMultiplayer' in build_script:
+    errors.append('remote client run must not depend on flaky Quick Play auto-connect')
 
 client_e2e_java = (
     ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java'
@@ -124,6 +126,8 @@ remote_client_java = (
     ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java'
 ).read_text(encoding='utf-8')
 for required in [
+    'ConnectScreen.startConnecting',
+    'ServerAddress.parseString(SERVER_ADDRESS)',
     'minecraft.getSingleplayerServer() != null',
     'KeyMapping.click',
     'PacketDistributor.sendToServer',
