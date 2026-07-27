@@ -24,7 +24,7 @@ The original temporarily swaps the selected main-hand and off-hand stacks and re
 
 The old approach retains player state in static maps without a complete logout/death/dimension lifecycle contract.
 
-**Replacement:** a non-serialized NeoForge Data Attachment lives on each Player instance. It is not copied on death, so respawn begins with clean cooldown and replay state. It disappears with the entity/session without manual UUID cleanup.
+**Replacement:** a non-serialized NeoForge Data Attachment lives on each Player instance. Reconnect and death/respawn create fresh transient state and restart client/server network sequences at `1`. A client-side dimension clone copies only the next request sequence and last client result to the replacement `LocalPlayer`; server state remains attached to the continuing `ServerPlayer`. This preserves the active replay anchor across dimension movement without carrying state through logout or death.
 
 ### Hurt-immunity reset
 
@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30255659755` for branch head `3bc780f1a66b0b094af28126614101128bd1b78e` completed:
+Clean CI run `30282626837` for branch head `a63ca81b4560303b314e117cb4ee31f8549e9936` and PR merge ref `c2a4f964e0fb4fc0a67aa53a40f00a5a22975b13` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -106,20 +106,22 @@ Clean CI run `30255659755` for branch head `3bc780f1a66b0b094af28126614101128bd1
 - only after client A's replay remained stable did the server arm client B; client B then independently began at sequence `1`, reduced its own target from `10.0` to `4.0` and consumed one off-hand durability;
 - both clients observed both final target-health values through world synchronization while retaining only their own result payload;
 - both per-player Data Attachment instances remained distinct and both duplicate replays caused no second health or durability change;
+- a separate physical Xvfb client connected to a separate Dedicated Server over `127.0.0.1:25566`, attacked at sequence `1`, disconnected and reconnected through vanilla `ConnectScreen`, then attacked from fresh state at sequence `1` and durability `0 → 1`;
+- the same client underwent an actual `/kill`, displayed the death screen, sent the vanilla respawn command, received fresh client/server transient state and attacked at sequence `1` and durability `0 → 1`;
+- an actual Overworld-to-Nether transition preserved the active server replay result and copied only the client sequence/result anchor to the replacement `LocalPlayer`; the next attack completed at sequence `2` and durability `1 → 2`;
 - production JAR required-entry, compatibility-metadata and all test-code exclusion audit;
 - no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client logs.
 
 Generated JAR SHA-256:
 
-`4693a43a8a1e2366fb02c295e7a7cd079b341216aa15e8498e34b69926c2c61b`
+`9ae7332e8a6d5ecf0728fcd2b8050bf93d23237f926b5899d1957bafb8aa248d`
 
-Two-client E2E evidence artifact ZIP SHA-256:
+CI evidence artifact ZIP SHA-256:
 
-`588d6ea556456ed7fdaef5132b6b1f190c61f6e7ddc8428fa71d7eb9893e6c9b`
+`68c8cdeb648b71a1e460ef640ace0f59143dbc66406a00e8733e903b504ebfde`
 
 ## Remaining release risks
 
-- Reconnect, actual respawn and actual dimension-transition lifecycle require multi-process or physical integration tests.
 - Latency/reordering and packet-spam trials require controlled network conditions.
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
 - Better Combat, Combatify, modded weapon hooks, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
