@@ -126,9 +126,11 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
                 target.setNoAi(true);
+                target.setNoGravity(true);
+                target.setInvulnerable(true);
                 target.setPersistenceRequired();
                 target.setHealth(target.getMaxHealth());
-                target.moveTo(player.getX(), player.getY(), player.getZ() + 2.0D, 0.0F, 0.0F);
+                target.moveTo(player.getX(), player.getY() + 2.5D, player.getZ(), 0.0F, 0.0F);
                 if (!player.serverLevel().addFreshEntity(target)) {
                     fail("failed to add E2E target to the integrated server");
                     return;
@@ -196,6 +198,7 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
 
+                living.setInvulnerable(false);
                 OffHandCombat.LOGGER.info("Off Hand Combat client GUI suppression E2E passed");
                 ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
                 phase = Phase.ARMED;
