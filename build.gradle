@@ -104,6 +104,24 @@ neoForge {
             jvmArgument '-Xmx1536m'
             systemProperty 'offhandcombat.lifecycleClientE2E', 'true'
         }
+        networkStressServerE2E {
+            server()
+            gameDirectory = project.file('run/stress-server')
+            sourceSet = sourceSets.remoteTest
+            programArgument '--nogui'
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1024m'
+            systemProperty 'offhandcombat.networkStressServerE2E', 'true'
+        }
+        networkStressClientE2E {
+            client()
+            gameDirectory = project.file('run/stress-client')
+            sourceSet = sourceSets.remoteTest
+            programArguments = ['--username', 'OffhandStress']
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1536m'
+            systemProperty 'offhandcombat.networkStressClientE2E', 'true'
+        }
         server {
             server()
             programArgument '--nogui'
