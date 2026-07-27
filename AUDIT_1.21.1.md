@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30282626837` for branch head `a63ca81b4560303b314e117cb4ee31f8549e9936` and PR merge ref `c2a4f964e0fb4fc0a67aa53a40f00a5a22975b13` completed:
+Clean CI run `30291303858` for branch head `a615cd6bb3f1b406fcfe023cac5fe1dea8d3d467` and PR merge ref `1daf7b203f82f3e5271dbb859c3b9f61cd35ca17` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -99,7 +99,7 @@ Clean CI run `30282626837` for branch head `a63ca81b4560303b314e117cb4ee31f8549e
 - ten required NeoForge GameTests;
 - physical Xvfb client startup;
 - copied-world integrated-client load;
-- GUI input suppression;
+- GUI input suppression with a test target isolated from random world damage before the authoritative attack;
 - real dedicated-key client-to-integrated-server request and server-to-client result payloads;
 - one separately launched Dedicated Server and two simultaneous Xvfb client processes connected through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
 - client A sent sequence `1`, reduced its target from `10.0` to `4.0`, consumed one off-hand durability and completed duplicate replay while client B remained at sequence `0`, no cached result and durability `0`;
@@ -109,8 +109,12 @@ Clean CI run `30282626837` for branch head `a63ca81b4560303b314e117cb4ee31f8549e
 - a separate physical Xvfb client connected to a separate Dedicated Server over `127.0.0.1:25566`, attacked at sequence `1`, disconnected and reconnected through vanilla `ConnectScreen`, then attacked from fresh state at sequence `1` and durability `0 → 1`;
 - the same client underwent an actual `/kill`, displayed the death screen, sent the vanilla respawn command, received fresh client/server transient state and attacked at sequence `1` and durability `0 → 1`;
 - an actual Overworld-to-Nether transition preserved the active server replay result and copied only the client sequence/result anchor to the replacement `LocalPlayer`; the next attack completed at sequence `2` and durability `1 → 2`;
+- a third physical Xvfb client connected to a separate Dedicated Server over `127.0.0.1:25567` while loopback `netem` applied `120ms ± 20ms` delay;
+- sequence `0` and `-1` were rejected, sequence `1` executed once, and a 64-request duplicate sequence-1 flood replayed the cached result without another health or durability change;
+- sequence `3` executed before intentionally delayed sequence `2`; sequence `2` was stale and duplicate sequence `3` returned the cached result;
+- invalid-target sequence `4` was rejected, unique sequences `5–68` were processed as a rate-limited burst without an extra effect, and sequence `69` subsequently executed exactly once with durability advancing from `2` to `3`;
 - production JAR required-entry, compatibility-metadata and all test-code exclusion audit;
-- no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client logs.
+- no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client, multiplayer, lifecycle or network-stress logs.
 
 Generated JAR SHA-256:
 
@@ -118,11 +122,10 @@ Generated JAR SHA-256:
 
 CI evidence artifact ZIP SHA-256:
 
-`68c8cdeb648b71a1e460ef640ace0f59143dbc66406a00e8733e903b504ebfde`
+`526bf4fd321c19f370484d8eb38d66a398dc1e6898dd5d36052284318ec518af`
 
 ## Remaining release risks
 
-- Latency/reordering and packet-spam trials require controlled network conditions.
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
 - Better Combat, Combatify, modded weapon hooks, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
 - Critical, sweep, knockback, fire-aspect and custom hook attribution require further integration tests.
