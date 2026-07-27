@@ -12,7 +12,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes ten required off-hand combat tests.
 - [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
-- [ ] **M** One remote multiplayer off-hand attack succeeds and produces exactly one durability change.
+- [x] **G** A separate Xvfb client process connects through vanilla `ConnectScreen` to a separately launched Dedicated Server, performs one dedicated-key off-hand attack and replays the same sequence without a second effect.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical input.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
@@ -23,7 +23,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **A** Lower sequence is stale and a higher sequence advances the window.
 - [x] **A** Failure status wire IDs are unique and stable round trips.
 - [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
-- [x] **G** The integrated client receives the cached result after a duplicate payload while authoritative health/durability remain unchanged.
+- [x] **G** Both integrated and separate-process remote clients receive the cached result after duplicate replay while authoritative health/durability remain unchanged.
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
@@ -79,6 +79,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 
 ## Multiplayer observation
 
+- [x] **G** one separate-process remote client and Dedicated Server agree on sequence, target health and one off-hand durability change after real socket transport.
 - [ ] **M** two remote clients observe the same one-time swing/damage result.
 - [ ] **M** two remote players maintain independent cooldown and sequence state.
 - [ ] **M** high latency/reordering produces no duplicate execution.
