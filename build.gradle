@@ -68,10 +68,7 @@ neoForge {
             client()
             gameDirectory = project.file('run/remote-client')
             sourceSet = sourceSets.remoteTest
-            programArguments = [
-                    '--username', 'OffhandRemote',
-                    '--quickPlayMultiplayer', '127.0.0.1:25565'
-            ]
+            programArguments = ['--username', 'OffhandRemote']
             systemProperty 'offhandcombat.remoteClientE2E', 'true'
         }
         server {
