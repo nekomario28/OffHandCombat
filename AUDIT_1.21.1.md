@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30244867438` for branch head `2e48cfbc4292bec0893db97263c2f9c9183159f6` completed:
+Clean CI run `30255659755` for branch head `3bc780f1a66b0b094af28126614101128bd1b78e` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -101,22 +101,24 @@ Clean CI run `30244867438` for branch head `2e48cfbc4292bec0893db97263c2f9c91831
 - copied-world integrated-client load;
 - GUI input suppression;
 - real dedicated-key client-to-integrated-server request and server-to-client result payloads;
-- a second, separately launched Dedicated Server and Xvfb client connected through vanilla `ConnectScreen` over `127.0.0.1:25565`;
-- the remote player joined the Dedicated Server, sent sequence `1`, reduced target health from `10.0` to `4.0` and consumed exactly one off-hand durability;
-- integrated and remote duplicate-sequence cached replay with no second health or durability change;
-- production JAR required-entry, compatibility-metadata and all test-code exclusion audit.
+- one separately launched Dedicated Server and two simultaneous Xvfb client processes connected through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
+- client A sent sequence `1`, reduced its target from `10.0` to `4.0`, consumed one off-hand durability and completed duplicate replay while client B remained at sequence `0`, no cached result and durability `0`;
+- only after client A's replay remained stable did the server arm client B; client B then independently began at sequence `1`, reduced its own target from `10.0` to `4.0` and consumed one off-hand durability;
+- both clients observed both final target-health values through world synchronization while retaining only their own result payload;
+- both per-player Data Attachment instances remained distinct and both duplicate replays caused no second health or durability change;
+- production JAR required-entry, compatibility-metadata and all test-code exclusion audit;
+- no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client logs.
 
 Generated JAR SHA-256:
 
 `4693a43a8a1e2366fb02c295e7a7cd079b341216aa15e8498e34b69926c2c61b`
 
-Remote E2E evidence artifact ZIP SHA-256:
+Two-client E2E evidence artifact ZIP SHA-256:
 
-`e9c6ef9b44218353b457d6120dcacc5c7431c393a9f97cc02529d8f309c67af4`
+`588d6ea556456ed7fdaef5132b6b1f190c61f6e7ddc8428fa71d7eb9893e6c9b`
 
 ## Remaining release risks
 
-- Two simultaneous remote clients and independent per-player cooldown/sequence observation remain unverified.
 - Reconnect, actual respawn and actual dimension-transition lifecycle require multi-process or physical integration tests.
 - Latency/reordering and packet-spam trials require controlled network conditions.
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
