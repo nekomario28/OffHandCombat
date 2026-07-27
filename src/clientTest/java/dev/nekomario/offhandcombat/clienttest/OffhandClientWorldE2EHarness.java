@@ -4,6 +4,8 @@ import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
+import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRegistry;
+import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRule;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.client.ClientModEvents;
 import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
@@ -12,6 +14,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -34,12 +37,16 @@ public final class OffhandClientWorldE2EHarness {
     private static final String WORLD_NAME = "SmokeWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 2400;
     private static final int GUI_SUPPRESSION_TICKS = 20;
+    private static final int ARBITRATION_SUPPRESSION_TICKS = 20;
+    private static final ResourceLocation ARBITRATION_RULE_ID = ResourceLocation.fromNamespaceAndPath(
+            OffHandCombat.MOD_ID, "client_e2e_deny");
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile int targetId = -1;
     private static volatile OffhandAttackResult firstResult;
     private static int clientTicks;
     private static int guiSuppressionDeadline;
+    private static int arbitrationSuppressionDeadline;
 
     private OffhandClientWorldE2EHarness() {
     }
@@ -65,7 +72,11 @@ public final class OffhandClientWorldE2EHarness {
             } else if (phase == Phase.WAITING_FOR_CLIENT_SYNC) {
                 beginGuiSuppressionCheckWhenClientIsSynchronized(minecraft);
             } else if (phase == Phase.WAITING_FOR_GUI_SUPPRESSION) {
-                verifyGuiSuppressionAndArmServer(minecraft);
+                verifyGuiSuppression(minecraft);
+            } else if (phase == Phase.WAITING_TO_TRIGGER_ARBITRATION_DENIAL) {
+                beginArbitrationDenialCheck(minecraft);
+            } else if (phase == Phase.WAITING_FOR_ARBITRATION_DENIAL) {
+                verifyArbitrationDenialAndArmServer(minecraft);
             } else if (phase == Phase.ARMED) {
                 triggerDedicatedKeyAttack(minecraft);
             } else if (phase == Phase.WAITING_FOR_FIRST_RESULT) {
@@ -161,7 +172,7 @@ public final class OffhandClientWorldE2EHarness {
         phase = Phase.WAITING_FOR_GUI_SUPPRESSION;
     }
 
-    private static void verifyGuiSuppressionAndArmServer(Minecraft minecraft) {
+    private static void verifyGuiSuppression(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.getSingleplayerServer() == null
                 || clientTicks < guiSuppressionDeadline) {
             return;
@@ -198,12 +209,80 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
 
-                living.setInvulnerable(false);
                 OffHandCombat.LOGGER.info("Off Hand Combat client GUI suppression E2E passed");
-                ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
-                phase = Phase.ARMED;
+                phase = Phase.WAITING_TO_TRIGGER_ARBITRATION_DENIAL;
             } catch (Throwable throwable) {
                 fail("GUI suppression verification exception", throwable);
+            }
+        });
+    }
+
+    private static void beginArbitrationDenialCheck(Minecraft minecraft) {
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null
+                || minecraft.getSingleplayerServer() == null) {
+            return;
+        }
+        Entity target = minecraft.level.getEntity(targetId);
+        if (target == null) {
+            return;
+        }
+
+        OffhandInputArbitrationRegistry.register(
+                ARBITRATION_RULE_ID,
+                Integer.MAX_VALUE,
+                context -> OffhandInputArbitrationRule.Decision.DENY);
+        minecraft.hitResult = new EntityHitResult(target);
+        KeyMapping.click(ClientModEvents.OFFHAND_ATTACK.get().getKey());
+        arbitrationSuppressionDeadline = clientTicks + ARBITRATION_SUPPRESSION_TICKS;
+        phase = Phase.WAITING_FOR_ARBITRATION_DENIAL;
+    }
+
+    private static void verifyArbitrationDenialAndArmServer(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null
+                || clientTicks < arbitrationSuppressionDeadline) {
+            return;
+        }
+        if (minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE).lastClientResult() != null) {
+            fail("input-arbitration DENY produced a client network result");
+            return;
+        }
+
+        OffhandInputArbitrationRegistry.register(
+                ARBITRATION_RULE_ID,
+                Integer.MAX_VALUE,
+                context -> OffhandInputArbitrationRule.Decision.PASS);
+        phase = Phase.VERIFYING_ARBITRATION_DENIAL;
+        UUID playerId = minecraft.player.getUUID();
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                Entity target = player == null ? null : player.serverLevel().getEntity(targetId);
+                if (player == null || !(target instanceof LivingEntity living)) {
+                    fail("server state was unavailable after input-arbitration denial check");
+                    return;
+                }
+
+                var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+                if (state.lastNetworkSequence() != 0L || state.lastNetworkResult() != null) {
+                    fail("input-arbitration DENY sent a network request");
+                    return;
+                }
+                if (Float.compare(living.getHealth(), living.getMaxHealth()) != 0) {
+                    fail("input-arbitration DENY changed target health");
+                    return;
+                }
+                if (player.getOffhandItem().getDamageValue() != 0) {
+                    fail("input-arbitration DENY consumed off-hand durability");
+                    return;
+                }
+
+                living.setInvulnerable(false);
+                ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
+                OffHandCombat.LOGGER.info("Off Hand Combat client arbitration denial E2E passed");
+                phase = Phase.ARMED;
+            } catch (Throwable throwable) {
+                fail("input-arbitration denial verification exception", throwable);
             }
         });
     }
@@ -315,6 +394,9 @@ public final class OffhandClientWorldE2EHarness {
         WAITING_FOR_CLIENT_SYNC,
         WAITING_FOR_GUI_SUPPRESSION,
         VERIFYING_GUI_SUPPRESSION,
+        WAITING_TO_TRIGGER_ARBITRATION_DENIAL,
+        WAITING_FOR_ARBITRATION_DENIAL,
+        VERIFYING_ARBITRATION_DENIAL,
         ARMED,
         WAITING_FOR_FIRST_RESULT,
         WAITING_FOR_REPLAY_RESULT,
