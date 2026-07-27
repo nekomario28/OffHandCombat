@@ -6,6 +6,7 @@ import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRule;
 import dev.nekomario.offhandcombat.api.OffhandInputContext;
 import dev.nekomario.offhandcombat.api.OffhandInputSource;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.attachment.OffhandCombatState;
 import dev.nekomario.offhandcombat.combat.OffhandWeaponRules;
 import dev.nekomario.offhandcombat.config.OffHandCombatClientConfig;
 import dev.nekomario.offhandcombat.config.OffhandInputMode;
@@ -19,6 +20,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -39,6 +41,21 @@ public final class ClientInputHandler {
         while (ClientModEvents.OFFHAND_ATTACK.get().consumeClick()) {
             trySendAttack(OffhandInputSource.DEDICATED_KEY);
         }
+    }
+
+    @SubscribeEvent
+    public static void onClientPlayerClone(ClientPlayerNetworkEvent.Clone event) {
+        LocalPlayer oldPlayer = event.getOldPlayer();
+        LocalPlayer newPlayer = event.getNewPlayer();
+        if (oldPlayer.isDeadOrDying()
+                || oldPlayer.level().dimension().equals(newPlayer.level().dimension())) {
+            return;
+        }
+
+        OffhandCombatState oldState = oldPlayer.getData(OffhandCombatAttachments.COMBAT_STATE);
+        newPlayer
+                .getData(OffhandCombatAttachments.COMBAT_STATE)
+                .copyClientDimensionStateFrom(oldState);
     }
 
     @SubscribeEvent
