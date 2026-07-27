@@ -24,14 +24,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class OffhandRemoteClientE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.remoteClientE2E";
+    private static final String ROLE_PROPERTY = "offhandcombat.remoteClientRole";
     private static final String SERVER_ADDRESS = "127.0.0.1:25565";
     private static final int CONNECT_AFTER_TICKS = 20;
-    private static final int TIMEOUT_TICKS = 3600;
+    private static final int TIMEOUT_TICKS = 4800;
+    private static final float EXPECTED_FINAL_HEALTH = 4.0F;
 
     private static Phase phase = Phase.WAITING_TO_CONNECT;
     private static int elapsedTicks;
     private static int targetId = -1;
     private static OffhandAttackResult firstResult;
+    private static Role role;
 
     private OffhandRemoteClientE2EHarness() {
     }
@@ -49,6 +52,14 @@ public final class OffhandRemoteClientE2EHarness {
                 return;
             }
 
+            if (role == null) {
+                role = Role.parse(System.getProperty(ROLE_PROPERTY));
+                if (role == null) {
+                    fail("missing or invalid remote client role property");
+                    return;
+                }
+            }
+
             Minecraft minecraft = Minecraft.getInstance();
             if (phase == Phase.WAITING_TO_CONNECT) {
                 connectWhenClientIsReady(minecraft);
@@ -60,9 +71,11 @@ public final class OffhandRemoteClientE2EHarness {
                 acceptFirstResultAndReplay(minecraft);
             } else if (phase == Phase.WAITING_FOR_REPLAY_RESULT) {
                 verifyReplayResult(minecraft);
+            } else if (phase == Phase.WAITING_FOR_PARTNER_OBSERVATION) {
+                verifyBothOneTimeResultsAreVisible(minecraft);
             }
         } catch (Throwable throwable) {
-            fail("remote client harness exception", throwable);
+            fail("two-client remote client harness exception", throwable);
         }
     }
 
@@ -77,9 +90,10 @@ public final class OffhandRemoteClientE2EHarness {
 
         phase = Phase.WAITING_FOR_CONNECTION;
         ServerData serverData = new ServerData(
-                "Off Hand Combat remote E2E", SERVER_ADDRESS, ServerData.Type.OTHER);
-        OffHandCombat.LOGGER.info("Off Hand Combat remote client connecting through vanilla ConnectScreen: {}",
-                SERVER_ADDRESS);
+                "Off Hand Combat two-client remote E2E", SERVER_ADDRESS, ServerData.Type.OTHER);
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat remote client {} connecting through vanilla ConnectScreen: {}",
+                role.id, SERVER_ADDRESS);
         ConnectScreen.startConnecting(
                 minecraft.screen,
                 minecraft,
@@ -100,13 +114,14 @@ public final class OffhandRemoteClientE2EHarness {
         if (!minecraft.getConnection().hasChannel(OffhandAttackRequestPayload.TYPE)) {
             return;
         }
-        if (!OffhandRemoteServerE2EHarness.PLAYER_NAME.equals(minecraft.player.getGameProfile().getName())) {
-            fail("remote client joined with the wrong username");
+        if (!role.playerName.equals(minecraft.player.getGameProfile().getName())) {
+            fail("remote client joined with the wrong username for role " + role.id);
             return;
         }
 
         phase = Phase.WAITING_FOR_TARGET;
-        OffHandCombat.LOGGER.info("Off Hand Combat remote client connected to a separate server");
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat remote client {} connected to the separate server", role.id);
     }
 
     private static void findTargetAndTriggerAttack(Minecraft minecraft) {
@@ -115,16 +130,11 @@ public final class OffhandRemoteClientE2EHarness {
             return;
         }
 
-        List<Mob> targets = minecraft.level.getEntitiesOfClass(
-                Mob.class,
-                minecraft.player.getBoundingBox().inflate(16.0D),
-                target -> target.hasCustomName()
-                        && OffhandRemoteServerE2EHarness.TARGET_NAME.equals(target.getCustomName().getString()));
-        if (targets.size() != 1) {
+        Mob target = findNamedTarget(minecraft, role.targetName);
+        if (target == null) {
             return;
         }
 
-        Mob target = targets.getFirst();
         targetId = target.getId();
         minecraft.hitResult = new EntityHitResult(target);
         KeyMapping.click(ClientModEvents.OFFHAND_ATTACK.get().getKey());
@@ -142,19 +152,20 @@ public final class OffhandRemoteClientE2EHarness {
             return;
         }
         if (result.status() != OffhandAttackStatus.SUCCESS) {
-            fail("remote result was " + result.status());
+            fail("remote client " + role.id + " result was " + result.status());
             return;
         }
         if (result.sequence() != 1L) {
-            fail("remote request did not begin with sequence 1");
+            fail("remote client " + role.id + " did not begin with independent sequence 1");
             return;
         }
-        if (!(result.targetHealthAfter() < result.targetHealthBefore())) {
-            fail("remote attack did not reduce target health");
+        if (Float.compare(result.targetHealthAfter(), EXPECTED_FINAL_HEALTH) != 0
+                || !(result.targetHealthAfter() < result.targetHealthBefore())) {
+            fail("remote client " + role.id + " attack produced unexpected target health");
             return;
         }
         if (result.durabilityAfter() - result.durabilityBefore() != 1) {
-            fail("remote attack did not consume exactly one off-hand durability");
+            fail("remote client " + role.id + " attack did not consume exactly one durability");
             return;
         }
 
@@ -177,36 +188,109 @@ public final class OffhandRemoteClientE2EHarness {
             return;
         }
 
-        var target = minecraft.level.getEntity(targetId);
-        if (!(target instanceof Mob living)) {
+        Mob target = findNamedTarget(minecraft, role.targetName);
+        if (target == null || target.getId() != targetId) {
             return;
         }
-        if (Float.compare(living.getHealth(), firstResult.targetHealthAfter()) != 0) {
+        if (Float.compare(target.getHealth(), firstResult.targetHealthAfter()) != 0) {
             return;
         }
         if (minecraft.player.getOffhandItem().getDamageValue() != firstResult.durabilityAfter()) {
             return;
         }
 
+        phase = Phase.WAITING_FOR_PARTNER_OBSERVATION;
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat remote client {} duplicate replay remained exactly-once", role.id);
+    }
+
+    private static void verifyBothOneTimeResultsAreVisible(Minecraft minecraft) {
+        if (minecraft.level == null || minecraft.player == null || firstResult == null) {
+            return;
+        }
+
+        OffhandAttackResult currentResult = minecraft.player
+                .getData(OffhandCombatAttachments.COMBAT_STATE)
+                .lastClientResult();
+        if (!firstResult.equals(currentResult)) {
+            fail("remote client " + role.id + " received another player's result or changed cached result");
+            return;
+        }
+
+        Mob ownTarget = findNamedTarget(minecraft, role.targetName);
+        Mob partnerTarget = findNamedTarget(minecraft, role.partnerTargetName);
+        if (ownTarget == null || partnerTarget == null) {
+            return;
+        }
+        if (Float.compare(ownTarget.getHealth(), EXPECTED_FINAL_HEALTH) != 0
+                || Float.compare(partnerTarget.getHealth(), EXPECTED_FINAL_HEALTH) != 0) {
+            return;
+        }
+        if (minecraft.player.getOffhandItem().getDamageValue() != 1) {
+            fail("remote client " + role.id + " durability changed after partner execution");
+            return;
+        }
+
         phase = Phase.PASSED;
         OffHandCombat.LOGGER.info(
-                "Off Hand Combat remote client E2E passed: sequence={}, target={}, health={} -> {}, durability={} -> {}",
-                firstResult.sequence(), firstResult.targetId(),
-                firstResult.targetHealthBefore(), firstResult.targetHealthAfter(),
-                firstResult.durabilityBefore(), firstResult.durabilityAfter());
+                "Off Hand Combat two-client remote client {} E2E passed: "
+                        + "sequence=1, ownTarget={}, partnerTarget={}, health={}, durability=1",
+                role.id, ownTarget.getId(), partnerTarget.getId(), EXPECTED_FINAL_HEALTH);
+    }
+
+    private static Mob findNamedTarget(Minecraft minecraft, String targetName) {
+        if (minecraft.level == null || minecraft.player == null) {
+            return null;
+        }
+        List<Mob> targets = minecraft.level.getEntitiesOfClass(
+                Mob.class,
+                minecraft.player.getBoundingBox().inflate(32.0D),
+                target -> target.hasCustomName() && targetName.equals(target.getCustomName().getString()));
+        return targets.size() == 1 ? targets.getFirst() : null;
     }
 
     private static void fail(String reason) {
         if (phase != Phase.FAILED) {
             phase = Phase.FAILED;
-            OffHandCombat.LOGGER.error("Off Hand Combat remote client E2E failed: {}", reason);
+            OffHandCombat.LOGGER.error("Off Hand Combat two-client remote client E2E failed: {}", reason);
         }
     }
 
     private static void fail(String reason, Throwable throwable) {
         if (phase != Phase.FAILED) {
             phase = Phase.FAILED;
-            OffHandCombat.LOGGER.error("Off Hand Combat remote client E2E failed: {}", reason, throwable);
+            OffHandCombat.LOGGER.error("Off Hand Combat two-client remote client E2E failed: {}", reason, throwable);
+        }
+    }
+
+    private enum Role {
+        A("A", OffhandRemoteServerE2EHarness.PLAYER_A_NAME,
+                OffhandRemoteServerE2EHarness.TARGET_A_NAME,
+                OffhandRemoteServerE2EHarness.TARGET_B_NAME),
+        B("B", OffhandRemoteServerE2EHarness.PLAYER_B_NAME,
+                OffhandRemoteServerE2EHarness.TARGET_B_NAME,
+                OffhandRemoteServerE2EHarness.TARGET_A_NAME);
+
+        private final String id;
+        private final String playerName;
+        private final String targetName;
+        private final String partnerTargetName;
+
+        Role(String id, String playerName, String targetName, String partnerTargetName) {
+            this.id = id;
+            this.playerName = playerName;
+            this.targetName = targetName;
+            this.partnerTargetName = partnerTargetName;
+        }
+
+        private static Role parse(String value) {
+            if ("A".equals(value)) {
+                return A;
+            }
+            if ("B".equals(value)) {
+                return B;
+            }
+            return null;
         }
     }
 
@@ -216,6 +300,7 @@ public final class OffhandRemoteClientE2EHarness {
         WAITING_FOR_TARGET,
         WAITING_FOR_FIRST_RESULT,
         WAITING_FOR_REPLAY_RESULT,
+        WAITING_FOR_PARTNER_OBSERVATION,
         PASSED,
         FAILED
     }
