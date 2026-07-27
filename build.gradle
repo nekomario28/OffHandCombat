@@ -27,6 +27,10 @@ sourceSets {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += output + compileClasspath
     }
+    remoteTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + compileClasspath
+    }
 }
 
 neoForge {
@@ -39,6 +43,7 @@ neoForge {
 
     addModdingDependenciesTo sourceSets.gameTest
     addModdingDependenciesTo sourceSets.clientTest
+    addModdingDependenciesTo sourceSets.remoteTest
 
     runs {
         client {
@@ -51,6 +56,23 @@ neoForge {
             sourceSet = sourceSets.clientTest
             programArguments = ['--username', 'OffhandE2E']
             systemProperty 'offhandcombat.clientWorldE2E', 'true'
+        }
+        remoteServerE2E {
+            server()
+            gameDirectory = project.file('run/remote-server')
+            sourceSet = sourceSets.remoteTest
+            programArgument '--nogui'
+            systemProperty 'offhandcombat.remoteServerE2E', 'true'
+        }
+        remoteClientE2E {
+            client()
+            gameDirectory = project.file('run/remote-client')
+            sourceSet = sourceSets.remoteTest
+            programArguments = [
+                    '--username', 'OffhandRemote',
+                    '--quickPlayMultiplayer', '127.0.0.1:25565'
+            ]
+            systemProperty 'offhandcombat.remoteClientE2E', 'true'
         }
         server {
             server()
@@ -73,6 +95,7 @@ neoForge {
             sourceSet(sourceSets.main)
             sourceSet(sourceSets.gameTest)
             sourceSet(sourceSets.clientTest)
+            sourceSet(sourceSets.remoteTest)
         }
     }
 }
@@ -82,6 +105,8 @@ configurations {
     gameTestRuntimeOnly.extendsFrom runtimeOnly
     clientTestImplementation.extendsFrom implementation
     clientTestRuntimeOnly.extendsFrom runtimeOnly
+    remoteTestImplementation.extendsFrom implementation
+    remoteTestRuntimeOnly.extendsFrom runtimeOnly
     runtimeClasspath.extendsFrom localRuntime
 }
 
