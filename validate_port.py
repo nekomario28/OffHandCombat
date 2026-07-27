@@ -53,7 +53,8 @@ for required in [
     '10 GAME TESTS COMPLETE',
     'All 10 required tests passed :)',
     'bash .ci/client-world-e2e.sh 240',
-    'bash .ci/remote-multiplayer-e2e.sh 300',
+    'bash .ci/remote-multiplayer-e2e.sh 420',
+    'Two remote clients against a separate dedicated server',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/remotetest/'",
@@ -75,29 +76,44 @@ for required in [
 remote_e2e_script = (ROOT / '.ci/remote-multiplayer-e2e.sh').read_text(encoding='utf-8')
 for required in [
     'runRemoteServerE2E',
-    'runRemoteClientE2E',
-    'Off Hand Combat remote server E2E passed',
-    'Off Hand Combat remote client E2E passed',
+    'runRemoteClientAE2E',
+    'runRemoteClientBE2E',
+    'Off Hand Combat two-client remote server E2E passed',
+    'Off Hand Combat two-client remote client A E2E passed',
+    'Off Hand Combat two-client remote client B E2E passed',
+    'client A replay remained isolated; armed client B',
     'online-mode=false',
+    'max-players=2',
     '127.0.0.1:25565',
+    'remote-client-a',
+    'remote-client-b',
+    'outofmemoryerror',
 ]:
     if required not in remote_e2e_script:
-        errors.append(f'remote E2E script missing required fragment: {required}')
+        errors.append(f'two-client remote E2E script missing required fragment: {required}')
 
 build_script = (ROOT / 'build.gradle').read_text(encoding='utf-8')
 for required in [
     "gameDirectory = project.file('run')",
     "gameDirectory = project.file('run/remote-server')",
-    "gameDirectory = project.file('run/remote-client')",
+    "gameDirectory = project.file('run/remote-client-a')",
+    "gameDirectory = project.file('run/remote-client-b')",
     'sourceSet = sourceSets.remoteTest',
-    "programArguments = ['--username', 'OffhandRemote']",
+    "programArguments = ['--username', 'OffhandRemoteA']",
+    "programArguments = ['--username', 'OffhandRemoteB']",
     "systemProperty 'offhandcombat.remoteServerE2E', 'true'",
     "systemProperty 'offhandcombat.remoteClientE2E', 'true'",
+    "systemProperty 'offhandcombat.remoteClientRole', 'A'",
+    "systemProperty 'offhandcombat.remoteClientRole', 'B'",
+    "jvmArgument '-Xmx1024m'",
+    "jvmArgument '-Xmx1536m'",
 ]:
     if required not in build_script:
         errors.append(f'build script missing required isolated run fragment: {required}')
 if '--quickPlayMultiplayer' in build_script:
-    errors.append('remote client run must not depend on flaky Quick Play auto-connect')
+    errors.append('remote clients must not depend on flaky Quick Play auto-connect')
+if 'run/remote-client\'' in build_script:
+    errors.append('obsolete shared remote-client game directory remains')
 
 client_e2e_java = (
     ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java'
@@ -115,12 +131,16 @@ remote_server_java = (
 ).read_text(encoding='utf-8')
 for required in [
     'server.isDedicatedServer()',
-    'lastNetworkSequence() != 1L',
-    'duplicate replay changed target health a second time',
-    'Off Hand Combat remote server E2E passed',
+    'PLAYER_A_NAME = "OffhandRemoteA"',
+    'PLAYER_B_NAME = "OffhandRemoteB"',
+    'stateB.lastNetworkSequence() != 0L',
+    'client A duplicate replay advanced client B sequence state',
+    'independent network sequence 1',
+    'two remote players unexpectedly shared the same combat-state object',
+    'Off Hand Combat two-client remote server E2E passed',
 ]:
     if required not in remote_server_java:
-        errors.append(f'remote server E2E harness missing required fragment: {required}')
+        errors.append(f'two-client remote server E2E harness missing required fragment: {required}')
 
 remote_client_java = (
     ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java'
@@ -128,13 +148,15 @@ remote_client_java = (
 for required in [
     'ConnectScreen.startConnecting',
     'ServerAddress.parseString(SERVER_ADDRESS)',
-    'minecraft.getSingleplayerServer() != null',
+    'offhandcombat.remoteClientRole',
+    'WAITING_FOR_PARTNER_OBSERVATION',
+    'received another player\'s result or changed cached result',
     'KeyMapping.click',
     'PacketDistributor.sendToServer',
-    'Off Hand Combat remote client E2E passed',
+    'Off Hand Combat two-client remote client {} E2E passed',
 ]:
     if required not in remote_client_java:
-        errors.append(f'remote client E2E harness missing required fragment: {required}')
+        errors.append(f'two-client remote client E2E harness missing required fragment: {required}')
 
 source_roots = [
     ROOT / 'src/main/java',
@@ -256,6 +278,6 @@ print(
     f'VALIDATION PASSED: {len(source_paths)} main Java files, '
     f'{len(game_test_paths)} isolated GameTest Java files, '
     f'{len(client_test_paths)} isolated client E2E Java files and '
-    f'{len(remote_test_paths)} isolated remote E2E Java files; '
+    f'{len(remote_test_paths)} isolated two-client remote E2E Java files; '
     'metadata, resources, workflow, legal, compatibility and architecture checks OK'
 )
