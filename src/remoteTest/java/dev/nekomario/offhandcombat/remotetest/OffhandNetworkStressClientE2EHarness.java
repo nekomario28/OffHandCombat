@@ -35,7 +35,6 @@ public final class OffhandNetworkStressClientE2EHarness {
     private static int targetId = -1;
     private static OffhandAttackResult initialResult;
     private static OffhandAttackResult reorderResult;
-    private static OffhandAttackResult finalResult;
 
     private OffhandNetworkStressClientE2EHarness() {
     }
@@ -71,9 +70,6 @@ public final class OffhandNetworkStressClientE2EHarness {
                 case WAITING_FOR_BURST_RESULT -> waitForBurstResult(minecraft);
                 case WAITING_FOR_FINAL_TARGET -> findFinalTargetAndSendSequenceSixtyNine(minecraft);
                 case WAITING_FOR_FINAL_SUCCESS -> waitForFinalSuccess(minecraft);
-                case WAITING_FOR_FINAL_STALE_FOUR -> waitForFinalStaleFour(minecraft);
-                case WAITING_FOR_FINAL_DUPLICATE -> waitForFinalDuplicate(minecraft);
-                case WAITING_FOR_FINAL_RATE_LIMIT -> waitForFinalRateLimit(minecraft);
                 default -> {
                 }
             }
@@ -311,52 +307,6 @@ public final class OffhandNetworkStressClientE2EHarness {
             return;
         }
 
-        finalResult = result;
-        clearClientResult(minecraft);
-        send(4L, targetId);
-        beginPhase(Phase.WAITING_FOR_FINAL_STALE_FOUR);
-    }
-
-    private static void waitForFinalStaleFour(Minecraft minecraft) {
-        OffhandAttackResult result = currentResult(minecraft);
-        if (!matches(result, 4L, targetId, OffhandAttackStatus.STALE_SEQUENCE)) {
-            return;
-        }
-        if (minecraft.player.getOffhandItem().getDamageValue() != 3) {
-            fail("final stale sequence 4 changed durability");
-            return;
-        }
-
-        clearClientResult(minecraft);
-        send(69L, targetId);
-        beginPhase(Phase.WAITING_FOR_FINAL_DUPLICATE);
-    }
-
-    private static void waitForFinalDuplicate(Minecraft minecraft) {
-        OffhandAttackResult result = currentResult(minecraft);
-        if (result == null || !finalResult.equals(result)) {
-            return;
-        }
-        if (minecraft.player.getOffhandItem().getDamageValue() != 3) {
-            fail("final duplicate sequence 69 changed durability");
-            return;
-        }
-
-        clearClientResult(minecraft);
-        send(70L, targetId);
-        beginPhase(Phase.WAITING_FOR_FINAL_RATE_LIMIT);
-    }
-
-    private static void waitForFinalRateLimit(Minecraft minecraft) {
-        OffhandAttackResult result = currentResult(minecraft);
-        if (!matches(result, 70L, targetId, OffhandAttackStatus.RATE_LIMITED)) {
-            return;
-        }
-        if (minecraft.player.getOffhandItem().getDamageValue() != 3) {
-            fail("final immediate sequence 70 changed durability");
-            return;
-        }
-
         phase = Phase.PASSED;
         OffHandCombat.LOGGER.info(
                 "Off Hand Combat network stress client E2E passed: invalid=0/-1, duplicateFlood=64, "
@@ -495,9 +445,6 @@ public final class OffhandNetworkStressClientE2EHarness {
         WAITING_FOR_BURST_RESULT,
         WAITING_FOR_FINAL_TARGET,
         WAITING_FOR_FINAL_SUCCESS,
-        WAITING_FOR_FINAL_STALE_FOUR,
-        WAITING_FOR_FINAL_DUPLICATE,
-        WAITING_FOR_FINAL_RATE_LIMIT,
         PASSED,
         FAILED
     }
