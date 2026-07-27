@@ -53,8 +53,10 @@ for required in [
     '10 GAME TESTS COMPLETE',
     'All 10 required tests passed :)',
     'bash .ci/client-world-e2e.sh 240',
+    'bash .ci/remote-multiplayer-e2e.sh 300',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
+    "grep -Fq 'dev/nekomario/offhandcombat/remotetest/'",
     "grep -Fq 'modId=\"bettercombat\"'",
     "grep -Fq 'modId=\"combatify\"'",
 ]:
@@ -70,9 +72,30 @@ for required in [
     if required not in client_e2e_script:
         errors.append(f'client E2E script missing required fragment: {required}')
 
+remote_e2e_script = (ROOT / '.ci/remote-multiplayer-e2e.sh').read_text(encoding='utf-8')
+for required in [
+    'runRemoteServerE2E',
+    'runRemoteClientE2E',
+    'Off Hand Combat remote server E2E passed',
+    'Off Hand Combat remote client E2E passed',
+    'online-mode=false',
+    '127.0.0.1:25565',
+]:
+    if required not in remote_e2e_script:
+        errors.append(f'remote E2E script missing required fragment: {required}')
+
 build_script = (ROOT / 'build.gradle').read_text(encoding='utf-8')
-if "gameDirectory = project.file('run')" not in build_script:
-    errors.append('client E2E run is not pinned to the shared run directory')
+for required in [
+    "gameDirectory = project.file('run')",
+    "gameDirectory = project.file('run/remote-server')",
+    "gameDirectory = project.file('run/remote-client')",
+    'sourceSet = sourceSets.remoteTest',
+    "'--quickPlayMultiplayer', '127.0.0.1:25565'",
+    "systemProperty 'offhandcombat.remoteServerE2E', 'true'",
+    "systemProperty 'offhandcombat.remoteClientE2E', 'true'",
+]:
+    if required not in build_script:
+        errors.append(f'build script missing required isolated run fragment: {required}')
 
 client_e2e_java = (
     ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java'
@@ -85,10 +108,35 @@ for required in [
     if required not in client_e2e_java:
         errors.append(f'client E2E harness missing required fragment: {required}')
 
+remote_server_java = (
+    ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java'
+).read_text(encoding='utf-8')
+for required in [
+    'server.isDedicatedServer()',
+    'lastNetworkSequence() != 1L',
+    'duplicate replay changed target health a second time',
+    'Off Hand Combat remote server E2E passed',
+]:
+    if required not in remote_server_java:
+        errors.append(f'remote server E2E harness missing required fragment: {required}')
+
+remote_client_java = (
+    ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java'
+).read_text(encoding='utf-8')
+for required in [
+    'minecraft.getSingleplayerServer() != null',
+    'KeyMapping.click',
+    'PacketDistributor.sendToServer',
+    'Off Hand Combat remote client E2E passed',
+]:
+    if required not in remote_client_java:
+        errors.append(f'remote client E2E harness missing required fragment: {required}')
+
 source_roots = [
     ROOT / 'src/main/java',
     ROOT / 'src/gameTest/java',
     ROOT / 'src/clientTest/java',
+    ROOT / 'src/remoteTest/java',
     ROOT / 'src/test/java',
 ]
 for source_root in source_roots:
@@ -159,12 +207,15 @@ for pattern, description in {
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
 
-if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/gametest').exists():
-    errors.append('GameTest Java sources must not be in the production source set')
+for forbidden in [
+    ROOT / 'src/main/java/dev/nekomario/offhandcombat/gametest',
+    ROOT / 'src/main/java/dev/nekomario/offhandcombat/clienttest',
+    ROOT / 'src/main/java/dev/nekomario/offhandcombat/remotetest',
+]:
+    if forbidden.exists():
+        errors.append(f'test Java sources must not be in production: {forbidden.relative_to(ROOT)}')
 if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
     errors.append('GameTest structures must not be in production resources')
-if (ROOT / 'src/main/java/dev/nekomario/offhandcombat/clienttest').exists():
-    errors.append('client E2E Java sources must not be in the production source set')
 
 game_test_java = (
     ROOT / 'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java'
@@ -196,9 +247,11 @@ if errors:
 
 game_test_paths = list((ROOT / 'src/gameTest/java').rglob('*.java'))
 client_test_paths = list((ROOT / 'src/clientTest/java').rglob('*.java'))
+remote_test_paths = list((ROOT / 'src/remoteTest/java').rglob('*.java'))
 print(
     f'VALIDATION PASSED: {len(source_paths)} main Java files, '
-    f'{len(game_test_paths)} isolated GameTest Java files and '
-    f'{len(client_test_paths)} isolated client E2E Java files; '
+    f'{len(game_test_paths)} isolated GameTest Java files, '
+    f'{len(client_test_paths)} isolated client E2E Java files and '
+    f'{len(remote_test_paths)} isolated remote E2E Java files; '
     'metadata, resources, workflow, legal, compatibility and architecture checks OK'
 )
