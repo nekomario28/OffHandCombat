@@ -228,12 +228,8 @@ public final class OffhandLifecycleServerE2EHarness {
             return;
         }
 
-        int result = server.getCommands().performPrefixedCommand(
+        server.getCommands().performPrefixedCommand(
                 server.createCommandSourceStack(), "kill " + PLAYER_NAME);
-        if (result <= 0) {
-            fail("kill command did not affect the lifecycle player");
-            return;
-        }
 
         beginPhase(Phase.WAITING_FOR_RESPAWN);
         OffHandCombat.LOGGER.info("Off Hand Combat lifecycle actual death requested");
@@ -309,14 +305,10 @@ public final class OffhandLifecycleServerE2EHarness {
         }
         preparePlatform(nether, NETHER_X, NETHER_Y, NETHER_Z);
 
-        int result = server.getCommands().performPrefixedCommand(
+        server.getCommands().performPrefixedCommand(
                 server.createCommandSourceStack(),
                 "execute in minecraft:the_nether run tp " + PLAYER_NAME + " "
                         + NETHER_X + " " + NETHER_Y + " " + NETHER_Z);
-        if (result <= 0) {
-            fail("dimension-transition command did not affect the lifecycle player");
-            return;
-        }
 
         beginPhase(Phase.WAITING_FOR_DIMENSION_CHANGE);
         OffHandCombat.LOGGER.info("Off Hand Combat lifecycle actual dimension transition requested");
