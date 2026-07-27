@@ -66,6 +66,11 @@ public final class OffhandCombatState {
         return value;
     }
 
+    public void copyClientDimensionStateFrom(OffhandCombatState source) {
+        nextClientSequence = source.nextClientSequence;
+        lastClientResult = source.lastClientResult;
+    }
+
     public long nextApiSequence() {
         long value = nextApiSequence;
         nextApiSequence = incrementSequence(nextApiSequence);
