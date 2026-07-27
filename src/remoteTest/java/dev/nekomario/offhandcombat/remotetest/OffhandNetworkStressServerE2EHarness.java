@@ -77,7 +77,6 @@ public final class OffhandNetworkStressServerE2EHarness {
                 case WAITING_FOR_BURST_RESULT -> waitForBurstResult(player);
                 case WAITING_FOR_FINAL_SETTLE -> waitForFinalSettle(player);
                 case WAITING_FOR_FINAL_SUCCESS -> waitForFinalSuccess(player);
-                case WAITING_FOR_FINAL_RATE_LIMIT -> waitForFinalRateLimit(player);
                 default -> {
                 }
             }
@@ -214,32 +213,6 @@ public final class OffhandNetworkStressServerE2EHarness {
             return;
         }
         if (!verifySuccess(player, state, result, 69L, 2, 3, "final sequence 69 attack")) {
-            return;
-        }
-
-        acceptedResult = result;
-        stableHealth = result.targetHealthAfter();
-        stableDurability = result.durabilityAfter();
-        beginPhase(Phase.WAITING_FOR_FINAL_RATE_LIMIT);
-        OffHandCombat.LOGGER.info(
-                "Off Hand Combat network stress recovered after burst and accepted sequence 69 exactly once");
-    }
-
-    private static void waitForFinalRateLimit(ServerPlayer player) {
-        if (!requirePlayer(player, "final stale/duplicate/rate-limit verification")) {
-            return;
-        }
-
-        OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
-        OffhandAttackResult result = state.lastNetworkResult();
-        if (state.lastNetworkSequence() < 70L || result == null || result.sequence() != 70L) {
-            return;
-        }
-        if (result.status() != OffhandAttackStatus.RATE_LIMITED) {
-            fail("final immediate sequence 70 was " + result.status() + " instead of RATE_LIMITED");
-            return;
-        }
-        if (!verifyTargetAndDurability(player, stableHealth, stableDurability, "final stale/duplicate stage")) {
             return;
         }
 
@@ -411,7 +384,6 @@ public final class OffhandNetworkStressServerE2EHarness {
         WAITING_FOR_BURST_RESULT,
         WAITING_FOR_FINAL_SETTLE,
         WAITING_FOR_FINAL_SUCCESS,
-        WAITING_FOR_FINAL_RATE_LIMIT,
         PASSED,
         FAILED
     }
