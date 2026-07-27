@@ -158,7 +158,7 @@ public final class OffhandNetworkStressClientE2EHarness {
 
     private static void waitForInitialSuccess(Minecraft minecraft) {
         OffhandAttackResult result = currentResult(minecraft);
-        if (result == null) {
+        if (result == null || result.sequence() != 1L || result.targetId() != targetId) {
             return;
         }
         if (!verifySuccess(result, 1L, 0, 1, "initial sequence 1")) {
@@ -205,7 +205,7 @@ public final class OffhandNetworkStressClientE2EHarness {
 
     private static void waitForReorderSuccess(Minecraft minecraft) {
         OffhandAttackResult result = currentResult(minecraft);
-        if (result == null) {
+        if (result == null || result.sequence() != 3L || result.targetId() != targetId) {
             return;
         }
         if (!verifySuccess(result, 3L, 1, 2, "reordered sequence 3")) {
@@ -304,7 +304,7 @@ public final class OffhandNetworkStressClientE2EHarness {
 
     private static void waitForFinalSuccess(Minecraft minecraft) {
         OffhandAttackResult result = currentResult(minecraft);
-        if (result == null) {
+        if (result == null || result.sequence() != 69L || result.targetId() != targetId) {
             return;
         }
         if (!verifySuccess(result, 69L, 2, 3, "final sequence 69")) {
