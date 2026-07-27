@@ -9,6 +9,9 @@ import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.EntityHitResult;
@@ -21,9 +24,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class OffhandRemoteClientE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.remoteClientE2E";
+    private static final String SERVER_ADDRESS = "127.0.0.1:25565";
+    private static final int CONNECT_AFTER_TICKS = 20;
     private static final int TIMEOUT_TICKS = 3600;
 
-    private static Phase phase = Phase.WAITING_FOR_CONNECTION;
+    private static Phase phase = Phase.WAITING_TO_CONNECT;
     private static int elapsedTicks;
     private static int targetId = -1;
     private static OffhandAttackResult firstResult;
@@ -45,7 +50,9 @@ public final class OffhandRemoteClientE2EHarness {
             }
 
             Minecraft minecraft = Minecraft.getInstance();
-            if (phase == Phase.WAITING_FOR_CONNECTION) {
+            if (phase == Phase.WAITING_TO_CONNECT) {
+                connectWhenClientIsReady(minecraft);
+            } else if (phase == Phase.WAITING_FOR_CONNECTION) {
                 waitForRemoteConnection(minecraft);
             } else if (phase == Phase.WAITING_FOR_TARGET) {
                 findTargetAndTriggerAttack(minecraft);
@@ -57,6 +64,29 @@ public final class OffhandRemoteClientE2EHarness {
         } catch (Throwable throwable) {
             fail("remote client harness exception", throwable);
         }
+    }
+
+    private static void connectWhenClientIsReady(Minecraft minecraft) {
+        if (elapsedTicks < CONNECT_AFTER_TICKS || minecraft.screen == null) {
+            return;
+        }
+        if (minecraft.level != null || minecraft.player != null || minecraft.getConnection() != null) {
+            fail("remote client had an unexpected active world or connection before setup");
+            return;
+        }
+
+        phase = Phase.WAITING_FOR_CONNECTION;
+        ServerData serverData = new ServerData(
+                "Off Hand Combat remote E2E", SERVER_ADDRESS, ServerData.Type.OTHER);
+        OffHandCombat.LOGGER.info("Off Hand Combat remote client connecting through vanilla ConnectScreen: {}",
+                SERVER_ADDRESS);
+        ConnectScreen.startConnecting(
+                minecraft.screen,
+                minecraft,
+                ServerAddress.parseString(SERVER_ADDRESS),
+                serverData,
+                false,
+                null);
     }
 
     private static void waitForRemoteConnection(Minecraft minecraft) {
@@ -181,6 +211,7 @@ public final class OffhandRemoteClientE2EHarness {
     }
 
     private enum Phase {
+        WAITING_TO_CONNECT,
         WAITING_FOR_CONNECTION,
         WAITING_FOR_TARGET,
         WAITING_FOR_FIRST_RESULT,
