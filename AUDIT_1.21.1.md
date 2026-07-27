@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-For branch head `333e4bd52449dfa667e081ca0e5a01dd2fa277c0`, clean CI completed:
+Clean CI run `30244867438` for branch head `2e48cfbc4292bec0893db97263c2f9c9183159f6` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -100,21 +100,23 @@ For branch head `333e4bd52449dfa667e081ca0e5a01dd2fa277c0`, clean CI completed:
 - physical Xvfb client startup;
 - copied-world integrated-client load;
 - GUI input suppression;
-- real dedicated-key client-to-server request and server-to-client result payloads;
-- duplicate sequence cached replay with no second health or durability change;
-- production JAR required-entry, compatibility-metadata and test-code exclusion audit.
+- real dedicated-key client-to-integrated-server request and server-to-client result payloads;
+- a second, separately launched Dedicated Server and Xvfb client connected through vanilla `ConnectScreen` over `127.0.0.1:25565`;
+- the remote player joined the Dedicated Server, sent sequence `1`, reduced target health from `10.0` to `4.0` and consumed exactly one off-hand durability;
+- integrated and remote duplicate-sequence cached replay with no second health or durability change;
+- production JAR required-entry, compatibility-metadata and all test-code exclusion audit.
 
 Generated JAR SHA-256:
 
 `4693a43a8a1e2366fb02c295e7a7cd079b341216aa15e8498e34b69926c2c61b`
 
-CI artifact ZIP SHA-256:
+Remote E2E evidence artifact ZIP SHA-256:
 
-`4dab75317bd3be97b91d7a5336b217f188c7fda5e9ff6765bc00cf1f2f39aee5`
+`e9c6ef9b44218353b457d6120dcacc5c7431c393a9f97cc02529d8f309c67af4`
 
 ## Remaining release risks
 
-- A remote client against a separately launched dedicated server and two-client observation remain unverified.
+- Two simultaneous remote clients and independent per-player cooldown/sequence observation remain unverified.
 - Reconnect, actual respawn and actual dimension-transition lifecycle require multi-process or physical integration tests.
 - Latency/reordering and packet-spam trials require controlled network conditions.
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
