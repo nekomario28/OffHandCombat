@@ -13,6 +13,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** GameTest Server discovers and passes ten required off-hand combat tests.
 - [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
 - [x] **G** Two separate Xvfb client processes connect through vanilla `ConnectScreen` to one separately launched Dedicated Server; each performs an independent sequence-1 dedicated-key attack and duplicate replay without a second effect.
+- [x] **G** One physical Xvfb client completes an actual disconnect/reconnect, death/respawn and Overworld-to-Nether transition against a separate Dedicated Server while replay and durability state follow the lifecycle contract.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical input.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
@@ -27,9 +28,9 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
-- [ ] **M** Reconnect starts a fresh replay window and has no retained UUID state.
-- [ ] **M** Death/respawn starts clean transient state.
-- [ ] **M** Dimension movement neither duplicates nor loses active state.
+- [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
+- [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
+- [x] **G** An actual Overworld-to-Nether transition preserves the active client/server replay anchor and off-hand stack state; the next accepted attack advances to sequence `2` with durability `1 → 2` without duplication or loss.
 - [ ] **M** Packet spam and sequence replay cannot multiply damage/durability under latency/reordering.
 
 ## Cross-hand cooldown
