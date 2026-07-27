@@ -9,6 +9,8 @@ SERVER_LOG="lifecycle-server-e2e.log"
 CLIENT_LOG="lifecycle-client-e2e.log"
 SERVER_MARKER="Off Hand Combat lifecycle server E2E passed"
 CLIENT_MARKER="Off Hand Combat lifecycle client E2E passed"
+SERVER_FAILURE_MARKER="Off Hand Combat lifecycle server E2E failed"
+CLIENT_FAILURE_MARKER="Off Hand Combat lifecycle client E2E failed"
 
 server_process=''
 client_process=''
@@ -92,6 +94,19 @@ for _ in $(seq 1 "$TIMEOUT_SECONDS"); do
       && grep -Fq "$CLIENT_MARKER" "$latest_client_log"; then
     passed=1
     break
+  fi
+
+  if [[ -f "$latest_server_log" ]] && grep -Fq "$SERVER_FAILURE_MARKER" "$latest_server_log"; then
+    cat "$SERVER_LOG"
+    cat "$latest_server_log"
+    [[ -f "$latest_client_log" ]] && cat "$latest_client_log"
+    exit 1
+  fi
+  if [[ -f "$latest_client_log" ]] && grep -Fq "$CLIENT_FAILURE_MARKER" "$latest_client_log"; then
+    cat "$CLIENT_LOG"
+    cat "$latest_client_log"
+    [[ -f "$latest_server_log" ]] && cat "$latest_server_log"
+    exit 1
   fi
 
   if ! kill -0 "$server_process" 2>/dev/null; then
