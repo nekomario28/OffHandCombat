@@ -30,6 +30,7 @@ jobs:
             .github/workflows/build.yml \
             .ci/remote-multiplayer-e2e.sh \
             build.gradle \
+            AUDIT_1.21.1.md \
             TEST_MATRIX.md \
             docs/PUBLIC_API.md \
             src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
