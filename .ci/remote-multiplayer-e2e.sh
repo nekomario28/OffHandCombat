@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TIMEOUT_SECONDS="${1:-300}"
+SERVER_ADDRESS="127.0.0.1:25565"
 SERVER_DIR="run/remote-server"
 CLIENT_DIR="run/remote-client"
 SERVER_LOG="remote-server-e2e.log"
@@ -70,6 +71,8 @@ if [[ "$server_ready" -ne 1 ]]; then
   exit 1
 fi
 
+# The Gradle run configuration uses the same loopback address pinned above.
+test "$SERVER_ADDRESS" = "127.0.0.1:25565"
 setsid xvfb-run -a gradle --no-daemon --offline runRemoteClientE2E --stacktrace > "$CLIENT_LOG" 2>&1 &
 client_process=$!
 
