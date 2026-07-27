@@ -86,6 +86,24 @@ neoForge {
             systemProperty 'offhandcombat.remoteClientE2E', 'true'
             systemProperty 'offhandcombat.remoteClientRole', 'B'
         }
+        lifecycleServerE2E {
+            server()
+            gameDirectory = project.file('run/lifecycle-server')
+            sourceSet = sourceSets.remoteTest
+            programArgument '--nogui'
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1024m'
+            systemProperty 'offhandcombat.lifecycleServerE2E', 'true'
+        }
+        lifecycleClientE2E {
+            client()
+            gameDirectory = project.file('run/lifecycle-client')
+            sourceSet = sourceSets.remoteTest
+            programArguments = ['--username', 'OffhandLifecycle']
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1536m'
+            systemProperty 'offhandcombat.lifecycleClientE2E', 'true'
+        }
         server {
             server()
             programArgument '--nogui'
