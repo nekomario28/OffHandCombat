@@ -62,14 +62,29 @@ neoForge {
             gameDirectory = project.file('run/remote-server')
             sourceSet = sourceSets.remoteTest
             programArgument '--nogui'
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1024m'
             systemProperty 'offhandcombat.remoteServerE2E', 'true'
         }
-        remoteClientE2E {
+        remoteClientAE2E {
             client()
-            gameDirectory = project.file('run/remote-client')
+            gameDirectory = project.file('run/remote-client-a')
             sourceSet = sourceSets.remoteTest
-            programArguments = ['--username', 'OffhandRemote']
+            programArguments = ['--username', 'OffhandRemoteA']
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1536m'
             systemProperty 'offhandcombat.remoteClientE2E', 'true'
+            systemProperty 'offhandcombat.remoteClientRole', 'A'
+        }
+        remoteClientBE2E {
+            client()
+            gameDirectory = project.file('run/remote-client-b')
+            sourceSet = sourceSets.remoteTest
+            programArguments = ['--username', 'OffhandRemoteB']
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1536m'
+            systemProperty 'offhandcombat.remoteClientE2E', 'true'
+            systemProperty 'offhandcombat.remoteClientRole', 'B'
         }
         server {
             server()
