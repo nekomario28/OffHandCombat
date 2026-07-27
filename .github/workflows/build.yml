@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -29,6 +29,7 @@ jobs:
             validate_port.py \
             .github/workflows/build.yml \
             .ci/remote-multiplayer-e2e.sh \
+            .ci/remote-lifecycle-e2e.sh \
             build.gradle \
             AUDIT_1.21.1.md \
             TEST_MATRIX.md \
@@ -37,6 +38,8 @@ jobs:
             src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleClientE2EHarness.java \
             src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
             | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
@@ -116,6 +119,9 @@ jobs:
       - name: Two remote clients against a separate dedicated server
         shell: bash
         run: bash .ci/remote-multiplayer-e2e.sh 420
+      - name: Reconnect, death/respawn and dimension lifecycle E2E
+        shell: bash
+        run: bash .ci/remote-lifecycle-e2e.sh 480
       - name: Verify distributable JAR
         shell: bash
         run: |
@@ -159,6 +165,11 @@ jobs:
             remote-server-latest.log
             remote-client-a-latest.log
             remote-client-b-latest.log
+            lifecycle-prepare.log
+            lifecycle-server-e2e.log
+            lifecycle-client-e2e.log
+            lifecycle-server-latest.log
+            lifecycle-client-latest.log
             run/**/logs/latest.log
             build/libs/*.jar
             build/reports/tests/test/**
