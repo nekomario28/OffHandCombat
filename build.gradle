@@ -61,7 +61,7 @@ neoForge {
             client()
             gameDirectory = project.file('run/vanilla-peer-client')
             sourceSet = sourceSets.remoteTest
-            programArguments = ['--username', 'OffhandVanillaPeer']
+            programArguments = ['--username', 'OHCVanillaPeer']
             jvmArgument '-Xms256m'
             jvmArgument '-Xmx1536m'
             systemProperty 'offhandcombat.vanillaServerClientE2E', 'true'
