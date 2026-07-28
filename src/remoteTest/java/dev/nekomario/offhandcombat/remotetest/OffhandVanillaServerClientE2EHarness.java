@@ -25,7 +25,7 @@ import net.neoforged.neoforge.client.event.InputEvent;
 public final class OffhandVanillaServerClientE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.vanillaServerClientE2E";
     private static final String SERVER_ADDRESS = "127.0.0.1:25568";
-    private static final String PLAYER_NAME = "OffhandVanillaPeer";
+    private static final String PLAYER_NAME = "OHCVanillaPeer";
     private static final int CONNECT_AFTER_TICKS = 20;
     private static final int USE_EVENT_TIMEOUT_TICKS = 80;
     private static final int DEDICATED_SETTLE_TICKS = 20;
