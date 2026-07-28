@@ -91,29 +91,35 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30293620154` for branch head `7dac3305a67f25adcbda1da7ef3985fa758e7c8e` and PR merge ref `bb9fd2316432f953f10e944fba9ad526825a1b61` completed:
+Clean CI run `30345776462` for branch head `99994572a8801124e2c6050555a6dd7152573290` and PR merge ref `e1df63f082a27225af257b1b73e8e6014d74d4e6` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
 - dedicated server startup through `Done`;
 - ten required NeoForge GameTests;
+- a GameTest-only Sharpness blacklist datapack causes the authoritative service to reject the enchanted off-hand sword with `INELIGIBLE_WEAPON`, without target damage or durability use;
+- the production enchantment blacklist remains empty and all GameTest resources/classes remain absent from the distributable JAR;
+- grounded normal and airborne critical off-hand sword attacks are compared: the critical applies the vanilla approximately `1.5×` multiplier once, consumes one off-hand durability and leaves main-hand durability unchanged;
+- with an axe in the main hand and a sword in the off hand, the primary target receives off-hand sword damage, one nearby target receives one vanilla sweep hit, an out-of-area target remains unchanged and only the off-hand sword loses durability;
+- Fire Aspect I and Knockback I attached only to the off-hand sword apply one vanilla fire duration and one knockback impulse while the main-hand axe contributes neither hook nor durability loss;
 - physical Xvfb client startup;
 - copied-world integrated-client load;
 - GUI input suppression with a test target isolated from random world damage before the authoritative attack;
-- a registered highest-priority input-arbitration `DENY` rule suppressed a real dedicated-key action without request, result, sequence advance, target-health change or durability use;
-- replacing the same arbitration rule ID with `PASS` restored the normal real dedicated-key client-to-integrated-server request, authoritative result and duplicate replay;
-- one separately launched Dedicated Server and two simultaneous Xvfb client processes connected through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
-- client A sent sequence `1`, reduced its target from `10.0` to `4.0`, consumed one off-hand durability and completed duplicate replay while client B remained at sequence `0`, no cached result and durability `0`;
-- only after client A's replay remained stable did the server arm client B; client B then independently began at sequence `1`, reduced its own target from `10.0` to `4.0` and consumed one off-hand durability;
-- both clients observed both final target-health values through world synchronization while retaining only their own result payload;
-- both per-player Data Attachment instances remained distinct and both duplicate replays caused no second health or durability change;
-- a separate physical Xvfb client connected to a separate Dedicated Server over `127.0.0.1:25566`, attacked at sequence `1`, disconnected and reconnected through vanilla `ConnectScreen`, then attacked from fresh state at sequence `1` and durability `0 → 1`;
-- the same client underwent an actual `/kill`, displayed the death screen, sent the vanilla respawn command, received fresh client/server transient state and attacked at sequence `1` and durability `0 → 1`;
-- an actual Overworld-to-Nether transition preserved the active server replay result and copied only the client sequence/result anchor to the replacement `LocalPlayer`; the next attack completed at sequence `2` and durability `1 → 2`;
-- a third physical Xvfb client connected to a separate Dedicated Server over `127.0.0.1:25567` while loopback `netem` applied `120ms ± 20ms` delay;
-- sequence `0` and `-1` were rejected, sequence `1` executed once, and a 64-request duplicate sequence-1 flood replayed the cached result without another health or durability change;
-- sequence `3` executed before intentionally delayed sequence `2`; sequence `2` was stale and duplicate sequence `3` returned the cached result;
-- invalid-target sequence `4` was rejected, unique sequences `5–68` were processed as a rate-limited burst without an extra effect, and sequence `69` subsequently executed exactly once with durability advancing from `2` to `3`;
+- a registered highest-priority input-arbitration `DENY` rule suppresses a real dedicated-key action without request, result, sequence advance, target-health change or durability use;
+- replacing the same arbitration rule ID with `PASS` restores the normal real dedicated-key client-to-integrated-server request, authoritative result and duplicate replay;
+- one separately launched Dedicated Server and two simultaneous Xvfb client processes connect through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
+- client A sends sequence `1`, reduces its target from `10.0` to `4.0`, consumes one off-hand durability and completes duplicate replay while client B remains at sequence `0`, no cached result and durability `0`;
+- only after client A's replay remains stable does the server arm client B; client B then independently begins at sequence `1`, reduces its own target from `10.0` to `4.0` and consumes one off-hand durability;
+- both clients observe both final target-health values through world synchronization while retaining only their own result payload;
+- both per-player Data Attachment instances remain distinct and both duplicate replays cause no second health or durability change;
+- the lifecycle client waits twenty client ticks after receiving the initial authoritative result so the server harness records its next phase before the real disconnect, removing a test-phase race without replacing the disconnect/reconnect path;
+- a separate physical Xvfb client connects to a separate Dedicated Server over `127.0.0.1:25566`, attacks at sequence `1`, disconnects and reconnects through vanilla `ConnectScreen`, then attacks from fresh state at sequence `1` and durability `0 → 1`;
+- the same client undergoes an actual `/kill`, displays the death screen, sends the vanilla respawn command, receives fresh client/server transient state and attacks at sequence `1` and durability `0 → 1`;
+- an actual Overworld-to-Nether transition preserves the active server replay result and copies only the client sequence/result anchor to the replacement `LocalPlayer`; the next attack completes at sequence `2` and durability `1 → 2`;
+- a third physical Xvfb client connects to a separate Dedicated Server over `127.0.0.1:25567` while loopback `netem` applies `120ms ± 20ms` delay;
+- sequence `0` and `-1` are rejected, sequence `1` executes once, and a 64-request duplicate sequence-1 flood replays the cached result without another health or durability change;
+- sequence `3` executes before intentionally delayed sequence `2`; sequence `2` is stale and duplicate sequence `3` returns the cached result;
+- invalid-target sequence `4` is rejected, unique sequences `5–68` are processed as a rate-limited burst without an extra effect, and sequence `69` subsequently executes exactly once with durability advancing from `2` to `3`;
 - production JAR required-entry, compatibility-metadata and all test-code exclusion audit;
 - no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client, multiplayer, lifecycle or network-stress logs.
 
@@ -123,10 +129,10 @@ Generated JAR SHA-256:
 
 CI evidence artifact ZIP SHA-256:
 
-`412f79a02e0b9e35d5ff790c6c307c375bdf5f17cd21ca914729e44abf8290ec`
+`7bb2a0158fae16106675d303d27d4dbe44f362fd1d25a4bd36f399d36cfed5e9`
 
 ## Remaining release risks
 
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
-- Better Combat, Combatify, modded weapon hooks, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
-- Critical, sweep, knockback, fire-aspect and custom hook attribution require further integration tests.
+- Better Combat, Combatify, representative modded weapons, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
+- Custom damage hooks from third-party weapons require an external fixture before compatibility can be claimed.
