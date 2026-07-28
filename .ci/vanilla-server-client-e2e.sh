@@ -157,7 +157,7 @@ for log in vanilla-peer-server-latest.log vanilla-peer-client-latest.log; do
   ! grep -Eiq 'mixin apply failed|exception in thread|fatal error|failed to load mod|outofmemoryerror' "$log"
 done
 
-grep -F 'OffhandVanillaPeer joined the game' vanilla-peer-server-latest.log
+grep -F 'OHCVanillaPeer joined the game' vanilla-peer-server-latest.log
 grep -F 'request channel absent' vanilla-peer-client-latest.log
 grep -F 'vanilla use input remained uncanceled' vanilla-peer-client-latest.log
 grep -F 'dedicated key remained idle without a negotiated channel' vanilla-peer-client-latest.log
