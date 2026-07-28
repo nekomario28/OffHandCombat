@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30358799284` for branch head `2ed329eacfaac37b43968704164096ee9cd04f9f` and PR merge ref `a914ab378ed264fa97bd1e911b0af9977eb0ea46` completed:
+Clean CI run `30362851049` (`Build and audit` run #360) for branch head `4e52aace2a30dffb06c974af79bdd65d0edbffdb` and PR merge ref `f0990a5bac0a28d2364030ed05931d01dc3884b6` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -109,6 +109,9 @@ Clean CI run `30358799284` for branch head `2ed329eacfaac37b43968704164096ee9cd0
 - GUI input suppression with a test target isolated from random world damage before the authoritative attack;
 - a registered highest-priority input-arbitration `DENY` rule suppresses a real dedicated-key action without request, result, sequence advance, target-health change or durability use;
 - replacing the same arbitration rule ID with `PASS` restores the normal real dedicated-key client-to-integrated-server request, authoritative result and duplicate replay;
+- the CI harness downloads the Mojang vanilla 1.21.1 server through Mojang's version manifest, verifies the manifest-provided server SHA-1, and keeps the server JAR outside the repository and uploaded evidence artifact;
+- a NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to that Mojang vanilla server over `127.0.0.1:25568` as `OHCVanillaPeer`;
+- the vanilla peer advertises no off-hand request channel, the real OFF_HAND vanilla-use pass remains uncanceled, the dedicated off-hand key sends no payload and advances no client sequence, no result is received, and the connection remains stable for the observation window;
 - one separately launched Dedicated Server and two simultaneous Xvfb client processes connect through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
 - client A sends sequence `1`, reduces its target from `10.0` to `4.0`, consumes one off-hand durability and completes duplicate replay while client B remains at sequence `0`, no cached result and durability `0`;
 - only after client A's replay remains stable does the server arm client B; client B then independently begins at sequence `1`, reduces its own target from `10.0` to `4.0` and consumes one off-hand durability;
@@ -123,7 +126,7 @@ Clean CI run `30358799284` for branch head `2ed329eacfaac37b43968704164096ee9cd0
 - sequence `3` executes before intentionally delayed sequence `2`; sequence `2` is stale and duplicate sequence `3` returns the cached result;
 - invalid-target sequence `4` is rejected, unique sequences `5–68` are processed as a rate-limited burst without an extra effect, and sequence `69` subsequently executes exactly once with durability advancing from `2` to `3`;
 - production JAR required-entry, compatibility-metadata and all test-code exclusion audit;
-- no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client, multiplayer, lifecycle or network-stress logs.
+- no fatal Mixin, mod-loading or out-of-memory signatures in the audited server/client, vanilla-peer, multiplayer, lifecycle or network-stress logs.
 
 Generated JAR SHA-256:
 
@@ -131,10 +134,11 @@ Generated JAR SHA-256:
 
 CI evidence artifact ZIP SHA-256:
 
-`73179a5dbf55e5af0e87e511fe802f54e64dc619d0a3ef52b19a372d24ae76bc`
+`9d15329f31186df5bb78617ad8d73c1940bbb1a5963fc3ee75102a5c58c019aa`
 
 ## Remaining release risks
 
+- Server-only installation still needs an actual vanilla client connection test; a NeoForge peer without Off Hand Combat may be used as an additional mismatch test but must not be mislabeled as the vanilla-client gate.
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
 - Better Combat, Combatify, representative modded weapons, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
 - Standard NeoForge attack-hook visibility and zero synthetic equipment-change events are automated, but actual third-party weapon and equipment-observer mods still require external fixtures before compatibility can be claimed.
