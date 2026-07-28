@@ -27,7 +27,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
 - [x] **G** Integrated and both separate-process clients receive their own cached result after duplicate replay while authoritative health/durability remain unchanged.
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
-- [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
+- [x] **G** A NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to the Mojang vanilla 1.21.1 server; the request channel remains absent, the vanilla OFF_HAND use pass is not canceled, the dedicated key creates no sequence or result, and the connection remains stable.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
