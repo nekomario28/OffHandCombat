@@ -82,6 +82,31 @@ public final class OffhandCombatGameTests {
                 "vanilla hurt immunity must prevent immediate duplicate damage");
         helper.assertValueEqual(offHand.getDamageValue(), durabilityAfterFirst,
                 "a rejected vanilla hurt must not consume durability again");
+
+        float normalDamage = first.targetHealthBefore() - first.targetHealthAfter();
+        target.discard();
+        Zombie criticalTarget = spawnTarget(helper);
+        player.setOnGround(false);
+        player.fallDistance = 1.0F;
+        player.setSprinting(false);
+        player.setDeltaMovement(0.0D, -0.1D, 0.0D);
+        access.ofc$setOffhandAttackStrengthTicker(100);
+
+        OffhandAttackResult critical = OffhandAttackService.INSTANCE.request(player, criticalTarget);
+        float criticalDamage = critical.targetHealthBefore() - critical.targetHealthAfter();
+
+        helper.assertValueEqual(critical.status(), OffhandAttackStatus.SUCCESS,
+                "the off-hand critical attack should execute");
+        helper.assertTrue(criticalDamage > normalDamage * 1.45F,
+                "the critical multiplier must apply to the off-hand weapon damage exactly once");
+        helper.assertTrue(criticalDamage < normalDamage * 1.55F,
+                "the off-hand critical must not multiply damage more than once");
+        helper.assertValueEqual(critical.durabilityAfter() - critical.durabilityBefore(), 1,
+                "the off-hand critical should consume durability exactly once");
+        helper.assertValueEqual(mainHand.getDamageValue(), 0,
+                "the off-hand critical must not consume main-hand durability");
+        player.setOnGround(true);
+        player.fallDistance = 0.0F;
         helper.succeed();
     }
 
