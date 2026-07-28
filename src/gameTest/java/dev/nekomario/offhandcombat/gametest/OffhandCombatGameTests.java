@@ -26,6 +26,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -43,6 +44,8 @@ public final class OffhandCombatGameTests {
     private static final String EMPTY = "gametest/empty3x3x3";
     private static final BlockPos PLAYER_POS = new BlockPos(1, 1, 1);
     private static final BlockPos TARGET_POS = new BlockPos(2, 1, 1);
+    private static final BlockPos SWEEP_NEAR_POS = new BlockPos(2, 1, 2);
+    private static final BlockPos SWEEP_FAR_POS = new BlockPos(0, 1, 2);
 
     private OffhandCombatGameTests() {
     }
@@ -338,6 +341,17 @@ public final class OffhandCombatGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_AXE));
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
         Zombie target = spawnTarget(helper);
+        Cow sweepNear = helper.spawnWithNoFreeWill(EntityType.COW, SWEEP_NEAR_POS);
+        Cow sweepFar = helper.spawnWithNoFreeWill(EntityType.COW, SWEEP_FAR_POS);
+        sweepNear.setHealth(sweepNear.getMaxHealth());
+        sweepFar.setHealth(sweepFar.getMaxHealth());
+        float sweepNearHealthBefore = sweepNear.getHealth();
+        float sweepFarHealthBefore = sweepFar.getHealth();
+
+        player.setOnGround(true);
+        player.fallDistance = 0.0F;
+        player.setSprinting(false);
+        player.setDeltaMovement(0.0D, 0.0D, 0.0D);
 
         AttributeMap liveAttributes = player.getAttributes();
         double attackDamageBefore = player.getAttributeValue(Attributes.ATTACK_DAMAGE);
@@ -349,6 +363,17 @@ public final class OffhandCombatGameTests {
 
         helper.assertValueEqual(result.status(), OffhandAttackStatus.SUCCESS,
                 "the off-hand attack should execute for the live-attribute audit");
+        helper.assertTrue(result.targetHealthBefore() - result.targetHealthAfter() > 5.5F,
+                "the primary sweep attack damage must come from the off-hand iron sword");
+        float sweepDamage = sweepNearHealthBefore - sweepNear.getHealth();
+        helper.assertTrue(sweepDamage > 0.95F && sweepDamage < 1.05F,
+                "the nearby target must receive exactly one vanilla sword sweep hit");
+        helper.assertValueEqual(sweepFar.getHealth(), sweepFarHealthBefore,
+                "a target outside the vanilla sweep area must remain unchanged");
+        helper.assertValueEqual(result.durabilityAfter() - result.durabilityBefore(), 1,
+                "the sweeping off-hand attack must consume durability exactly once");
+        helper.assertValueEqual(player.getMainHandItem().getDamageValue(), 0,
+                "the main-hand axe must not lose durability during an off-hand sweep");
         helper.assertTrue(player.getAttributes() == liveAttributes,
                 "the live player AttributeMap object must not be replaced");
         helper.assertValueEqual(player.getAttributeValue(Attributes.ATTACK_DAMAGE), attackDamageBefore,
