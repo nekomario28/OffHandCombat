@@ -66,7 +66,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [ ] **M** food and potion use.
 - [ ] **M** door, button, lever, chest and other block interaction.
 - [ ] **M** trading, feeding/taming, mounting and other entity interaction.
-- [ ] **M** a registered input-arbitration rule can deny conversion.
+- [x] **G** a registered input-arbitration rule can deny a real dedicated-key conversion without advancing sequence state or changing target health/durability; replacing the same rule ID with `PASS` restores normal attack execution.
 
 ## Server validation
 
