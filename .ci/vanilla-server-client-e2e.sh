@@ -80,8 +80,8 @@ PY
 gradle --no-daemon --max-workers=1 compileRemoteTestJava generateModMetadata --stacktrace \
   > vanilla-peer-prepare.log 2>&1
 
-setsid java -Xms256m -Xmx1024m -jar "$SERVER_DIR/server.jar" nogui \
-  > "$SERVER_LOG" 2>&1 &
+setsid bash -c 'cd "$1" && exec java -Xms256m -Xmx1024m -jar server.jar nogui' \
+  _ "$SERVER_DIR" > "$SERVER_LOG" 2>&1 &
 server_process=$!
 
 server_ready=0
