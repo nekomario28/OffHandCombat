@@ -23,6 +23,9 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingEquipmentChangeEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -30,6 +33,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class OffhandCombatPublicApiGameTests {
     private static final String EMPTY = "gametest/empty3x3x3";
+
+    private static boolean compatibilityProbeRegistered;
+    private static ServerPlayer compatibilityProbePlayer;
+    private static Entity compatibilityProbeTarget;
+    private static int attackHookCalls;
+    private static int equipmentChangeCalls;
+    private static ItemStack attackHookWeapon = ItemStack.EMPTY;
 
     private OffhandCombatPublicApiGameTests() {
     }
@@ -84,7 +94,13 @@ public final class OffhandCombatPublicApiGameTests {
         Cow localTarget = helper.spawnWithNoFreeWill(EntityType.COW, new BlockPos(2, 1, 1));
         localTarget.setHealth(localTarget.getMaxHealth());
         ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
-        OffhandAttackResult enchantedResult = OffhandAttackService.INSTANCE.request(player, localTarget);
+        armCompatibilityProbe(player, localTarget);
+        OffhandAttackResult enchantedResult;
+        try {
+            enchantedResult = OffhandAttackService.INSTANCE.request(player, localTarget);
+        } finally {
+            disarmCompatibilityProbe();
+        }
         double knockbackX = localTarget.getDeltaMovement().x;
         double knockbackZ = localTarget.getDeltaMovement().z;
         double horizontalKnockback = Math.sqrt(knockbackX * knockbackX + knockbackZ * knockbackZ);
@@ -104,6 +120,50 @@ public final class OffhandCombatPublicApiGameTests {
                 "off-hand enchantment hooks must consume durability exactly once");
         helper.assertValueEqual(mainHand.getDamageValue(), 0,
                 "off-hand enchantment hooks must not consume main-hand durability");
+        helper.assertValueEqual(attackHookCalls, 1,
+                "a third-party AttackEntityEvent hook must observe one call per accepted off-hand attack");
+        helper.assertTrue(attackHookWeapon == enchantedOffhand,
+                "an AttackEntityEvent hook using getWeaponItem must observe the exact off-hand stack");
+        helper.assertValueEqual(equipmentChangeCalls, 0,
+                "an off-hand attack must not emit synthetic LivingEquipmentChangeEvent notifications");
+        helper.assertTrue(player.getMainHandItem() == mainHand && player.getOffhandItem() == enchantedOffhand,
+                "the real hand stacks must remain in their original slots after hook execution");
         helper.succeed();
+    }
+
+    private static void armCompatibilityProbe(ServerPlayer player, Entity target) {
+        ensureCompatibilityProbeRegistered();
+        compatibilityProbePlayer = player;
+        compatibilityProbeTarget = target;
+        attackHookCalls = 0;
+        equipmentChangeCalls = 0;
+        attackHookWeapon = ItemStack.EMPTY;
+    }
+
+    private static void disarmCompatibilityProbe() {
+        compatibilityProbePlayer = null;
+        compatibilityProbeTarget = null;
+    }
+
+    private static void ensureCompatibilityProbeRegistered() {
+        if (compatibilityProbeRegistered) {
+            return;
+        }
+        NeoForge.EVENT_BUS.addListener(OffhandCombatPublicApiGameTests::onAttackEntity);
+        NeoForge.EVENT_BUS.addListener(OffhandCombatPublicApiGameTests::onEquipmentChange);
+        compatibilityProbeRegistered = true;
+    }
+
+    private static void onAttackEntity(AttackEntityEvent event) {
+        if (event.getEntity() == compatibilityProbePlayer && event.getTarget() == compatibilityProbeTarget) {
+            attackHookCalls++;
+            attackHookWeapon = event.getEntity().getWeaponItem();
+        }
+    }
+
+    private static void onEquipmentChange(LivingEquipmentChangeEvent event) {
+        if (event.getEntity() == compatibilityProbePlayer) {
+            equipmentChangeCalls++;
+        }
     }
 }
