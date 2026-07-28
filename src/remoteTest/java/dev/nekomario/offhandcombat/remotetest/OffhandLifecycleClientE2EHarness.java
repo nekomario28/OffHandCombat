@@ -28,6 +28,7 @@ public final class OffhandLifecycleClientE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.lifecycleClientE2E";
     private static final String SERVER_ADDRESS = "127.0.0.1:25566";
     private static final int CONNECT_AFTER_TICKS = 20;
+    private static final int INITIAL_RESULT_SETTLE_TICKS = 20;
     private static final int RECONNECT_DELAY_TICKS = 20;
     private static final int RESPAWN_DELAY_TICKS = 20;
     private static final int TIMEOUT_TICKS = 7200;
@@ -62,6 +63,7 @@ public final class OffhandLifecycleClientE2EHarness {
                         minecraft, OffhandLifecycleServerE2EHarness.INITIAL_TARGET_NAME,
                         Phase.WAITING_FOR_INITIAL_RESULT);
                 case WAITING_FOR_INITIAL_RESULT -> waitForInitialResult(minecraft);
+                case WAITING_TO_DISCONNECT_FOR_RECONNECT -> waitToDisconnectForReconnect(minecraft);
                 case WAITING_FOR_DISCONNECT_CLEANUP -> waitForDisconnectCleanup(minecraft);
                 case WAITING_FOR_RECONNECT_CONNECTION -> waitForConnection(minecraft, true);
                 case WAITING_FOR_RECONNECT_TARGET -> attackNamedTarget(
@@ -147,10 +149,20 @@ public final class OffhandLifecycleClientE2EHarness {
             return;
         }
 
+        beginPhase(Phase.WAITING_TO_DISCONNECT_FOR_RECONNECT);
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat lifecycle client initial result observed; allowing server phase to settle");
+    }
+
+    private static void waitToDisconnectForReconnect(Minecraft minecraft) {
+        if (elapsedTicks - phaseStartedAtTick < INITIAL_RESULT_SETTLE_TICKS) {
+            return;
+        }
         if (minecraft.getConnection() == null) {
             fail("initial connection disappeared before reconnect request");
             return;
         }
+
         minecraft.getConnection().getConnection().disconnect(
                 Component.literal("Off Hand Combat lifecycle reconnect"));
         beginPhase(Phase.WAITING_FOR_DISCONNECT_CLEANUP);
@@ -391,6 +403,7 @@ public final class OffhandLifecycleClientE2EHarness {
         WAITING_FOR_INITIAL_CONNECTION,
         WAITING_FOR_INITIAL_TARGET,
         WAITING_FOR_INITIAL_RESULT,
+        WAITING_TO_DISCONNECT_FOR_RECONNECT,
         WAITING_FOR_DISCONNECT_CLEANUP,
         WAITING_FOR_RECONNECT_CONNECTION,
         WAITING_FOR_RECONNECT_TARGET,
