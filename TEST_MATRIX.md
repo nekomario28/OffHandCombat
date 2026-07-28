@@ -30,6 +30,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [ ] **M** Client-only installation does not cancel input or disconnect from a vanilla server.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
+- [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
 - [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** An actual Overworld-to-Nether transition preserves the active client/server replay anchor and off-hand stack state; the next accepted attack advances to sequence `2` with durability `1 → 2` without duplication or loss.
 - [x] **G** Under `120ms ± 20ms` loopback delay, 64 duplicate sequence-1 requests replay one cached result, sequence `3` executes before delayed sequence `2`, sequence `2` is stale, a unique burst `5–68` is rate-limited without extra damage/durability, and sequence `69` subsequently executes once.
@@ -46,11 +47,11 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 ## Attribution and exactly-once effects
 
 - [x] **G** attack damage and attack speed are sourced from the off-hand weapon.
-- [ ] **G/M** critical attribution uses the off-hand weapon and occurs once.
-- [ ] **G/M** sweeping attribution, damage and hit area use the off-hand weapon and occur once.
+- [x] **G** a grounded normal off-hand sword hit is compared with an airborne critical; the critical applies the vanilla approximately `1.5×` multiplier exactly once, consumes off-hand durability once and leaves main-hand durability unchanged.
+- [x] **G** with an axe in the main hand and a sword in the off hand, the off-hand attack applies primary sword damage, one vanilla sweep hit to a nearby entity, no hit outside the sweep area and one off-hand durability use.
 - [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
 - [x] **G** an immediate attack rejected by vanilla hurt immunity does not consume durability again.
-- [ ] **G/M** damage, knockback, fire aspect and other enchantment hooks occur exactly once.
+- [x] **G** Fire Aspect I and Knockback I on the off-hand sword apply one vanilla fire duration and one knockback impulse while the main-hand axe contributes neither hook nor durability loss.
 - [x] **G** main-hand durability remains unchanged during an off-hand attack.
 - [x] **G** the live AttributeMap object and main-hand attack damage/speed values are identical before and after execution; the copied off-hand view is cleared.
 - [x] **G** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
@@ -77,7 +78,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** vanilla `Player.canInteractWithEntity` entity reach is enforced.
 - [x] **G** line of sight is enforced when enabled.
 - [x] **G** an ineligible off-hand item is rejected server-side.
-- [ ] **G/M** a blacklisted enchantment is rejected server-side.
+- [x] **G** a GameTest-only datapack places Sharpness in the enchantment blacklist; the authoritative service returns `INELIGIBLE_WEAPON` with no damage or durability use, while the production blacklist remains empty in the distributable JAR.
 
 ## Multiplayer observation
 
