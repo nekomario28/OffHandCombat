@@ -82,7 +82,8 @@ neoForge {
             loadedMods = []
             programArguments = [
                 '--username', 'OHCNoModPeer',
-                '--quickPlayMultiplayer', '127.0.0.1:25569'
+                '--server', '127.0.0.1',
+                '--port', '25569'
             ]
             jvmArgument '-Xms256m'
             jvmArgument '-Xmx1536m'
