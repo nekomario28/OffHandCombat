@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30345776462` for branch head `99994572a8801124e2c6050555a6dd7152573290` and PR merge ref `e1df63f082a27225af257b1b73e8e6014d74d4e6` completed:
+Clean CI run `30358799284` for branch head `2ed329eacfaac37b43968704164096ee9cd04f9f` and PR merge ref `a914ab378ed264fa97bd1e911b0af9977eb0ea46` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -102,6 +102,8 @@ Clean CI run `30345776462` for branch head `99994572a8801124e2c6050555a6dd715257
 - grounded normal and airborne critical off-hand sword attacks are compared: the critical applies the vanilla approximately `1.5×` multiplier once, consumes one off-hand durability and leaves main-hand durability unchanged;
 - with an axe in the main hand and a sword in the off hand, the primary target receives off-hand sword damage, one nearby target receives one vanilla sweep hit, an out-of-area target remains unchanged and only the off-hand sword loses durability;
 - Fire Aspect I and Knockback I attached only to the off-hand sword apply one vanilla fire duration and one knockback impulse while the main-hand axe contributes neither hook nor durability loss;
+- a test-only NeoForge `AttackEntityEvent` hook fires exactly once for the accepted off-hand attack and its `getWeaponItem()` call observes the exact off-hand `ItemStack`;
+- a test-only `LivingEquipmentChangeEvent` observer receives zero notifications during attack execution, while the real main-hand and off-hand stack identities remain in their original slots;
 - physical Xvfb client startup;
 - copied-world integrated-client load;
 - GUI input suppression with a test target isolated from random world damage before the authoritative attack;
@@ -129,10 +131,10 @@ Generated JAR SHA-256:
 
 CI evidence artifact ZIP SHA-256:
 
-`7bb2a0158fae16106675d303d27d4dbe44f362fd1d25a4bd36f399d36cfed5e9`
+`73179a5dbf55e5af0e87e511fe802f54e64dc619d0a3ef52b19a372d24ae76bc`
 
 ## Remaining release risks
 
 - Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
 - Better Combat, Combatify, representative modded weapons, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
-- Custom damage hooks from third-party weapons require an external fixture before compatibility can be claimed.
+- Standard NeoForge attack-hook visibility and zero synthetic equipment-change events are automated, but actual third-party weapon and equipment-observer mods still require external fixtures before compatibility can be claimed.
