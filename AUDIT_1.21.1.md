@@ -1,6 +1,6 @@
 # OffHandCombat 1.21.1 migration audit
 
-Date: 2026-07-27
+Date: 2026-07-28
 
 ## Decision
 
@@ -91,7 +91,7 @@ A future optional adapter may use only the public API. It must not reference Mix
 
 ## Automated evidence
 
-Clean CI run `30291303858` for branch head `a615cd6bb3f1b406fcfe023cac5fe1dea8d3d467` and PR merge ref `1daf7b203f82f3e5271dbb859c3b9f61cd35ca17` completed:
+Clean CI run `30293620154` for branch head `7dac3305a67f25adcbda1da7ef3985fa758e7c8e` and PR merge ref `bb9fd2316432f953f10e944fba9ad526825a1b61` completed:
 
 - source SHA-256 manifest and static architecture/legal/metadata audit;
 - Java 21 `clean test build` against NeoForge 21.1.242;
@@ -100,7 +100,8 @@ Clean CI run `30291303858` for branch head `a615cd6bb3f1b406fcfe023cac5fe1dea8d3
 - physical Xvfb client startup;
 - copied-world integrated-client load;
 - GUI input suppression with a test target isolated from random world damage before the authoritative attack;
-- real dedicated-key client-to-integrated-server request and server-to-client result payloads;
+- a registered highest-priority input-arbitration `DENY` rule suppressed a real dedicated-key action without request, result, sequence advance, target-health change or durability use;
+- replacing the same arbitration rule ID with `PASS` restored the normal real dedicated-key client-to-integrated-server request, authoritative result and duplicate replay;
 - one separately launched Dedicated Server and two simultaneous Xvfb client processes connected through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
 - client A sent sequence `1`, reduced its target from `10.0` to `4.0`, consumed one off-hand durability and completed duplicate replay while client B remained at sequence `0`, no cached result and durability `0`;
 - only after client A's replay remained stable did the server arm client B; client B then independently began at sequence `1`, reduced its own target from `10.0` to `4.0` and consumed one off-hand durability;
@@ -122,7 +123,7 @@ Generated JAR SHA-256:
 
 CI evidence artifact ZIP SHA-256:
 
-`526bf4fd321c19f370484d8eb38d66a398dc1e6898dd5d36052284318ec518af`
+`412f79a02e0b9e35d5ff790c6c307c375bdf5f17cd21ca914729e44abf8290ec`
 
 ## Remaining release risks
 
