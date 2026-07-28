@@ -52,6 +52,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** an accepted off-hand attack changes off-hand durability exactly once.
 - [x] **G** an immediate attack rejected by vanilla hurt immunity does not consume durability again.
 - [x] **G** Fire Aspect I and Knockback I on the off-hand sword apply one vanilla fire duration and one knockback impulse while the main-hand axe contributes neither hook nor durability loss.
+- [x] **G** a test-only NeoForge `AttackEntityEvent` hook fires exactly once for an accepted off-hand attack and `getWeaponItem()` exposes the exact off-hand `ItemStack` while the hook runs.
 - [x] **G** main-hand durability remains unchanged during an off-hand attack.
 - [x] **G** the live AttributeMap object and main-hand attack damage/speed values are identical before and after execution; the copied off-hand view is cleared.
 - [x] **G** vanilla invulnerability is preserved; a SUCCESS result may correctly show unchanged health.
@@ -92,10 +93,11 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **R** Better Combat is declared `discouraged`: its upstream compatibility policy identifies dual wield, reach, attack timing/cooldown and attack-key modifications as semantic conflicts.
 - [x] **R** Combatify is declared `discouraged`: it replaces the vanilla combat model and has no Off Hand Combat authority adapter.
 - [ ] **M** a modded weapon using vanilla attack modifiers.
-- [ ] **M** a weapon with custom damage hooks.
+- [ ] **M** a representative third-party weapon with custom damage hooks.
 - [ ] **M** attribute/quality/rarity mod; bonuses remain after attack and reconnect.
 - [ ] **M** Curios/accessory attributes remain unchanged.
-- [ ] **M** inventory/equipment event mod receives no synthetic swap events.
+- [x] **G** a NeoForge `LivingEquipmentChangeEvent` observer receives zero notifications during the accepted off-hand attack, and both real hand-stack identities remain in their original slots afterward.
+- [ ] **M** a representative inventory/equipment event mod receives no synthetic swap events.
 - [ ] **M** performance/animation Mixin mod has no startup conflict or hand tremor.
 
 Any incompatibility discovered here must become either a tagged exclusion, a public compatibility rule/adapter, a NeoForge metadata warning/block, or explicit documentation before release.
