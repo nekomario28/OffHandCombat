@@ -7,12 +7,17 @@ import dev.nekomario.offhandcombat.api.OffhandAttackRequest;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.api.OffhandAttackSource;
 import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
+import dev.nekomario.offhandcombat.api.OffhandWeaponEligibility;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.combat.OffhandAttackService;
+import dev.nekomario.offhandcombat.combat.OffhandWeaponRules;
 import dev.nekomario.offhandcombat.config.OffHandCombatConfig;
+import dev.nekomario.offhandcombat.registry.OffHandCombatTags;
 import dev.nekomario.offhandcombat.util.CooldownMath;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ClientInformation;
@@ -25,6 +30,8 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -143,6 +150,32 @@ public final class OffhandCombatGameTests {
         OffhandAttackResult ineligible = OffhandAttackService.INSTANCE.request(player, validTarget);
         helper.assertValueEqual(ineligible.status(), OffhandAttackStatus.INELIGIBLE_WEAPON,
                 "an empty off hand should be rejected server-side");
+
+        Holder<Enchantment> sharpness = helper.getLevel().registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT)
+                .getOrThrow(Enchantments.SHARPNESS);
+        helper.assertTrue(sharpness.is(OffHandCombatTags.OFFHAND_ATTACK_ENCHANTMENT_BLACKLIST),
+                "the GameTest-only datapack must place Sharpness in the enchantment blacklist");
+
+        ItemStack blacklistedWeapon = new ItemStack(Items.IRON_SWORD);
+        blacklistedWeapon.enchant(sharpness, 1);
+        player.setItemInHand(InteractionHand.OFF_HAND, blacklistedWeapon);
+        float healthBeforeBlacklist = validTarget.getHealth();
+        int durabilityBeforeBlacklist = blacklistedWeapon.getDamageValue();
+
+        OffhandWeaponEligibility blacklistEligibility = OffhandWeaponRules.evaluate(player, blacklistedWeapon);
+        helper.assertTrue(!blacklistEligibility.eligible(),
+                "a weapon carrying a blacklisted enchantment must be ineligible");
+        helper.assertValueEqual(blacklistEligibility.reason(), "enchantment_blacklist",
+                "the rejection reason must identify the enchantment blacklist");
+
+        OffhandAttackResult blacklisted = OffhandAttackService.INSTANCE.request(player, validTarget);
+        helper.assertValueEqual(blacklisted.status(), OffhandAttackStatus.INELIGIBLE_WEAPON,
+                "the authoritative service must reject a blacklisted enchantment");
+        helper.assertValueEqual(validTarget.getHealth(), healthBeforeBlacklist,
+                "a blacklisted enchantment must not damage the target");
+        helper.assertValueEqual(blacklistedWeapon.getDamageValue(), durabilityBeforeBlacklist,
+                "a blacklisted enchantment must not consume durability");
 
         ServerPlayer spectator = makeSpectatorPlayer(helper);
         spectator.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
