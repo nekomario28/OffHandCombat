@@ -66,6 +66,27 @@ neoForge {
             jvmArgument '-Xmx1536m'
             systemProperty 'offhandcombat.vanillaServerClientE2E', 'true'
         }
+        serverOnlyServerE2E {
+            server()
+            gameDirectory = project.file('run/server-only-server')
+            sourceSet = sourceSets.remoteTest
+            programArgument '--nogui'
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1024m'
+            systemProperty 'offhandcombat.serverOnlyE2E', 'true'
+        }
+        serverOnlyPeerClientE2E {
+            client()
+            gameDirectory = project.file('run/server-only-peer')
+            sourceSet = sourceSets.main
+            loadedMods = []
+            programArguments = [
+                '--username', 'OHCNoModPeer',
+                '--quickPlayMultiplayer', '127.0.0.1:25569'
+            ]
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1536m'
+        }
         remoteServerE2E {
             server()
             gameDirectory = project.file('run/remote-server')
