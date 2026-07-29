@@ -1,0 +1,201 @@
+name: Build and audit
+
+on:
+  push:
+    branches: [ master, 1.21.1-neoforge ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Static port audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            validate_port.py \
+            .github/workflows/build.yml \
+            .ci/remote-multiplayer-e2e.sh \
+            .ci/remote-lifecycle-e2e.sh \
+            .ci/remote-network-stress-e2e.sh \
+            .ci/vanilla-server-client-e2e.sh \
+            build.gradle \
+            AUDIT_1.21.1.md \
+            TEST_MATRIX.md \
+            docs/PUBLIC_API.md \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandVanillaServerClientE2EHarness.java \
+            src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
+            | tee static-audit.log
+          python3 validate_port.py 2>&1 | tee -a static-audit.log
+          sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
+      - name: Unit tests and build
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+      - name: Dedicated server smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run run/server
+          printf 'eula=true\n' > run/eula.txt
+          printf 'eula=true\n' > run/server/eula.txt
+          printf 'online-mode=false\nserver-port=0\nlevel-name=world\n' > run/server.properties
+
+          setsid gradle --no-daemon runServer > server-smoke.log 2>&1 &
+          server_process=$!
+          ready=0
+          latest_log=''
+
+          for _ in $(seq 1 180); do
+            latest_log="$(find run -type f -path '*/logs/latest.log' -print -quit 2>/dev/null || true)"
+            if [[ -n "$latest_log" ]] && grep -Fq 'Done (' "$latest_log"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_process" 2>/dev/null; then
+              cat server-smoke.log
+              [[ -n "$latest_log" ]] && cat "$latest_log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          kill -INT -- "-$server_process" 2>/dev/null || true
+          for _ in $(seq 1 20); do
+            kill -0 "$server_process" 2>/dev/null || break
+            sleep 1
+          done
+          kill -KILL -- "-$server_process" 2>/dev/null || true
+          wait "$server_process" 2>/dev/null || true
+
+          if [[ "$ready" -ne 1 ]]; then
+            cat server-smoke.log
+            [[ -n "$latest_log" ]] && cat "$latest_log"
+            exit 1
+          fi
+
+          ! grep -Eiq 'mixin apply failed|exception in thread|fatal error|failed to load mod' "$latest_log"
+          grep -F 'Done (' "$latest_log"
+          cp "$latest_log" dedicated-server.log
+      - name: GameTest server
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
+          grep -Fq '10 tests are now running' gametest.log
+          grep -Fq '10 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 10 required tests passed :)' gametest.log
+      - name: Ensure virtual display and network controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=()
+          command -v xvfb-run >/dev/null 2>&1 || packages+=(xvfb)
+          command -v tc >/dev/null 2>&1 || packages+=(iproute2)
+          if [[ "${#packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${packages[@]}"
+          fi
+      - name: Physical client smoke test
+        shell: bash
+        run: bash .ci/client-smoke.sh 180
+      - name: Integrated client world and network E2E
+        shell: bash
+        run: bash .ci/client-world-e2e.sh 240
+      - name: Client-only mod against Mojang vanilla server
+        shell: bash
+        run: bash .ci/vanilla-server-client-e2e.sh 420
+      - name: Two remote clients against a separate dedicated server
+        shell: bash
+        run: bash .ci/remote-multiplayer-e2e.sh 420
+      - name: Reconnect, death/respawn and dimension lifecycle E2E
+        shell: bash
+        run: bash .ci/remote-lifecycle-e2e.sh 480
+      - name: Delayed, reordered and burst network stress E2E
+        shell: bash
+        run: bash .ci/remote-network-stress-e2e.sh 600
+      - name: Verify distributable JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar_file="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -print -quit)"
+          test -n "$jar_file"
+          for entry in \
+            LICENSE \
+            META-INF/neoforge.mods.toml \
+            offhandcombat.mixins.json \
+            dev/nekomario/offhandcombat/OffHandCombat.class \
+            assets/offhandcombat/lang/en_us.json \
+            assets/offhandcombat/lang/ja_jp.json
+          do
+            jar tf "$jar_file" | grep -Fqx "$entry"
+          done
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/gametest/'
+          ! jar tf "$jar_file" | grep -Fq 'data/offhandcombat/structure/gametest/'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/remotetest/'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="bettercombat"'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="combatify"'
+          sha256sum "$jar_file"
+      - name: Upload JARs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offhandcombat-1.21.1-${{ github.sha }}
+          path: |
+            static-audit.log
+            build.log
+            server-smoke.log
+            dedicated-server.log
+            gametest.log
+            client-smoke.log
+            client-world-e2e.log
+            vanilla-peer-prepare.log
+            vanilla-peer-server-e2e.log
+            vanilla-peer-client-e2e.log
+            vanilla-peer-server-latest.log
+            vanilla-peer-client-latest.log
+            remote-prepare.log
+            remote-server-e2e.log
+            remote-client-a-e2e.log
+            remote-client-b-e2e.log
+            remote-server-latest.log
+            remote-client-a-latest.log
+            remote-client-b-latest.log
+            lifecycle-prepare.log
+            lifecycle-server-e2e.log
+            lifecycle-client-e2e.log
+            lifecycle-server-latest.log
+            lifecycle-client-latest.log
+            stress-prepare.log
+            stress-server-e2e.log
+            stress-client-e2e.log
+            stress-server-latest.log
+            stress-client-latest.log
+            run/**/logs/latest.log
+            build/libs/*.jar
+            build/reports/tests/test/**
+          if-no-files-found: error
