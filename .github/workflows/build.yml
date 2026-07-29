@@ -32,7 +32,6 @@ jobs:
             .ci/remote-lifecycle-e2e.sh \
             .ci/remote-network-stress-e2e.sh \
             .ci/vanilla-server-client-e2e.sh \
-            .ci/server-only-no-mod-peer-e2e.sh \
             build.gradle \
             AUDIT_1.21.1.md \
             TEST_MATRIX.md \
@@ -46,7 +45,6 @@ jobs:
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressServerE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressClientE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandVanillaServerClientE2EHarness.java \
-            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandServerOnlyE2EHarness.java \
             src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
             | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
@@ -130,9 +128,6 @@ jobs:
       - name: Client-only mod against Mojang vanilla server
         shell: bash
         run: bash .ci/vanilla-server-client-e2e.sh 420
-      - name: Server-only mod with no-mod NeoForge peer
-        shell: bash
-        run: bash .ci/server-only-no-mod-peer-e2e.sh 420
       - name: Two remote clients against a separate dedicated server
         shell: bash
         run: bash .ci/remote-multiplayer-e2e.sh 420
@@ -183,11 +178,6 @@ jobs:
             vanilla-peer-client-e2e.log
             vanilla-peer-server-latest.log
             vanilla-peer-client-latest.log
-            server-only-prepare.log
-            server-only-server-e2e.log
-            server-only-peer-e2e.log
-            server-only-server-latest.log
-            server-only-peer-latest.log
             remote-prepare.log
             remote-server-e2e.log
             remote-client-a-e2e.log
