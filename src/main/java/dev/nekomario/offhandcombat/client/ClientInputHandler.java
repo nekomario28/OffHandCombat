@@ -38,9 +38,6 @@ public final class ClientInputHandler {
             runtimeReadyLogged = true;
             OffHandCombat.LOGGER.info("Off Hand Combat client runtime ready");
         }
-        while (ClientModEvents.OFFHAND_ATTACK.get().consumeClick()) {
-            trySendAttack(OffhandInputSource.DEDICATED_KEY);
-        }
     }
 
     @SubscribeEvent
@@ -63,13 +60,11 @@ public final class ClientInputHandler {
         if (!event.isUseItem() || event.getHand() != InteractionHand.OFF_HAND || event.isCanceled()) {
             return;
         }
-        OffhandInputMode mode = OffHandCombatClientConfig.INPUT_MODE.get();
-        if (mode == OffhandInputMode.DEDICATED_KEY) {
-            return;
-        }
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
-        if (player == null || (mode == OffhandInputMode.USE_KEY_WHEN_SNEAKING && !player.isCrouching())) {
+        if (player == null
+                || (OffHandCombatClientConfig.INPUT_MODE.get() == OffhandInputMode.USE_KEY_WHEN_SNEAKING
+                && !player.isCrouching())) {
             return;
         }
         if (trySendAttack(OffhandInputSource.USE_KEY)) {
