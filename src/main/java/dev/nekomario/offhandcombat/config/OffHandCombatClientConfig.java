@@ -10,8 +10,8 @@ public final class OffHandCombatClientConfig {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
         builder.push("input");
         INPUT_MODE = builder
-                .comment("DEDICATED_KEY is safest. USE_KEY modes are explicit opt-ins for legacy right-click behavior.")
-                .defineEnum("mode", OffhandInputMode.DEDICATED_KEY);
+                .comment("USE_KEY_ALWAYS is the default right-click off-hand attack mode. DEDICATED_KEY remains an optional V-key fallback, and USE_KEY_WHEN_SNEAKING is available for compatibility.")
+                .defineEnum("mode", OffhandInputMode.USE_KEY_ALWAYS);
         builder.pop();
         SPEC = builder.build();
     }
