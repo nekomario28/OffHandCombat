@@ -11,11 +11,11 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes ten required off-hand combat tests.
-- [x] **G** A real client dedicated-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
-- [x] **G** Two separate Xvfb client processes connect through vanilla `ConnectScreen` to one separately launched Dedicated Server; each performs an independent sequence-1 dedicated-key attack and duplicate replay without a second effect.
+- [x] **G** A real client right-click/use-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
+- [x] **G** Two separate Xvfb client processes connect through vanilla `ConnectScreen` to one separately launched Dedicated Server; each performs an independent sequence-1 right-click/use-key attack and duplicate replay without a second effect.
 - [x] **G** One physical Xvfb client completes an actual disconnect/reconnect, death/respawn and Overworld-to-Nether transition against a separate Dedicated Server while replay and durability state follow the lifecycle contract.
 - [x] **G** A physical Xvfb client and separate Dedicated Server complete invalid-sequence, duplicate-flood, reordered-sequence and unique-sequence burst trials over loopback with `netem` delay `120ms ± 20ms`; execution remains exactly once and recovers after the burst.
-- [ ] **M** The default `USE_KEY_ALWAYS` mode performs one right-click off-hand attack against a targeted entity.
+- [x] **G** The default `USE_KEY_ALWAYS` mode performs one right-click off-hand attack against a targeted entity.
 - [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical right-click input.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
@@ -28,7 +28,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** Duplicate payload replays the cached result without a second attack or durability change.
 - [x] **G** Integrated and both separate-process clients receive their own cached result after duplicate replay while authoritative health/durability remain unchanged.
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
-- [x] **G** A NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to the Mojang vanilla 1.21.1 server; the request channel remains absent, the vanilla OFF_HAND use pass is not canceled, the dedicated key creates no sequence or result, and the connection remains stable.
+- [x] **G** A NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to the Mojang vanilla 1.21.1 server; the request channel remains absent, the vanilla OFF_HAND use pass is not canceled, right-click creates no custom sequence or result, and the connection remains stable.
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
@@ -62,15 +62,15 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 ## Input priority
 
 - [x] **A** the client config defaults to `USE_KEY_ALWAYS`, making right-click the standard off-hand attack input.
-- [ ] **M** the default right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent.
-- [x] **G** the optional registered dedicated key triggers a real in-world client → server off-hand attack without replacing vanilla use.
-- [x] **G** the dedicated key uses the `IN_GAME` conflict context and produces no request, result, damage or durability change while a Screen is open.
+- [x] **G** the right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent.
+- [x] **A** no dedicated off-hand attack key is registered.
+- [x] **G** a right-click/use-key action produces no request, result, damage or durability change while a Screen is open.
 - [ ] **M** shield priority.
 - [ ] **M** bow, crossbow and trident use.
 - [ ] **M** food and potion use.
 - [ ] **M** door, button, lever, chest and other block interaction.
 - [ ] **M** trading, feeding/taming, mounting and other entity interaction.
-- [x] **G** a registered input-arbitration rule can deny a real dedicated-key conversion without advancing sequence state or changing target health/durability; replacing the same rule ID with `PASS` restores normal attack execution.
+- [x] **G** a registered input-arbitration rule can deny a real right-click conversion without advancing sequence state or changing target health/durability; replacing the same rule ID with `PASS` restores normal attack execution.
 
 ## Server validation
 
