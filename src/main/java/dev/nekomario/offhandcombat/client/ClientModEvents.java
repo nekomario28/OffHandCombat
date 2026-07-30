@@ -1,31 +1,21 @@
 package dev.nekomario.offhandcombat.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
-import dev.nekomario.offhandcombat.OffHandCombat;
 import net.minecraft.client.KeyMapping;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.common.util.Lazy;
-import org.lwjgl.glfw.GLFW;
 
-@EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
+/**
+ * Compatibility bridge used by the integration harnesses to trigger Minecraft's vanilla Use Item mapping.
+ *
+ * <p>No custom key mapping is registered. The removed implementation used
+ * {@code KeyConflictContext.IN_GAME}; production input now enters exclusively through the vanilla
+ * right-click/use pipeline.</p>
+ */
 public final class ClientModEvents {
-    public static final Lazy<KeyMapping> OFFHAND_ATTACK = Lazy.of(() -> new KeyMapping(
-            "key.offhandcombat.attack",
-            KeyConflictContext.IN_GAME,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_V,
-            "key.categories.offhandcombat"
-    ));
+    @Deprecated(forRemoval = true)
+    public static final Lazy<KeyMapping> OFFHAND_ATTACK = Lazy.of(
+            () -> Minecraft.getInstance().options.keyUse);
 
     private ClientModEvents() {
-    }
-
-    @SubscribeEvent
-    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        event.register(OFFHAND_ATTACK.get());
     }
 }
