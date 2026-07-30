@@ -36,7 +36,7 @@ RLO-style alternating attacks clear `invulnerableTime` and `lastHurt` to force a
 
 Injecting at the head of `Minecraft.startUseItem` steals shield, bow, crossbow, food, potion, door, container, trading and mounting interactions.
 
-**Replacement:** right-click is the default through NeoForge's per-hand input event rather than an early `Minecraft.startUseItem` injection. Conversion occurs only on the `OFF_HAND` pass and cancels vanilla use only after an off-hand request is actually sent, so normal main-hand item and entity interactions retain priority. The dedicated `V` key remains an optional `KeyConflictContext.IN_GAME` fallback, and the request path rejects input while a `Screen` is open. External arbitration rules can deny conversion.
+**Replacement:** right-click enters through NeoForge's per-hand input event rather than an early `Minecraft.startUseItem` injection. Conversion occurs only on the `OFF_HAND` pass and cancels vanilla use only after an off-hand request is actually sent, so normal main-hand item and entity interactions retain priority. No custom attack key is registered. The request path rejects input while a `Screen` is open, and external arbitration rules can deny conversion.
 
 ### Brittle animation redirects
 
@@ -107,11 +107,11 @@ Clean CI run `30362851049` (`Build and audit` run #360) for branch head `4e52aac
 - physical Xvfb client startup;
 - copied-world integrated-client load;
 - GUI input suppression with a test target isolated from random world damage before the authoritative attack;
-- a registered highest-priority input-arbitration `DENY` rule suppresses a real dedicated-key action without request, result, sequence advance, target-health change or durability use;
-- replacing the same arbitration rule ID with `PASS` restores the normal real dedicated-key client-to-integrated-server request, authoritative result and duplicate replay;
+- a registered highest-priority input-arbitration `DENY` rule suppresses a real right-click/use-key action without request, result, sequence advance, target-health change or durability use;
+- replacing the same arbitration rule ID with `PASS` restores the normal right-click client-to-integrated-server request, authoritative result and duplicate replay;
 - the CI harness downloads the Mojang vanilla 1.21.1 server through Mojang's version manifest, verifies the manifest-provided server SHA-1, and keeps the server JAR outside the repository and uploaded evidence artifact;
 - a NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to that Mojang vanilla server over `127.0.0.1:25568` as `OHCVanillaPeer`;
-- the vanilla peer advertises no off-hand request channel, the real OFF_HAND vanilla-use pass remains uncanceled, the dedicated off-hand key sends no payload and advances no client sequence, no result is received, and the connection remains stable for the observation window;
+- the vanilla peer advertises no off-hand request channel, the real OFF_HAND vanilla-use pass remains uncanceled, right-click sends no custom payload or client sequence without a negotiated channel, no result is received, and the connection remains stable for the observation window;
 - one separately launched Dedicated Server and two simultaneous Xvfb client processes connect through vanilla `ConnectScreen` over `127.0.0.1:25565` with distinct usernames and game directories;
 - client A sends sequence `1`, reduces its target from `10.0` to `4.0`, consumes one off-hand durability and completes duplicate replay while client B remains at sequence `0`, no cached result and durability `0`;
 - only after client A's replay remains stable does the server arm client B; client B then independently begins at sequence `1`, reduces its own target from `10.0` to `4.0` and consumes one off-hand durability;
@@ -139,6 +139,6 @@ CI evidence artifact ZIP SHA-256:
 ## Remaining release risks
 
 - Server-only installation still needs an actual vanilla client connection test; a NeoForge peer without Off Hand Combat may be used as an additional mismatch test but must not be mislabeled as the vanilla-client gate.
-- Physical right-click input still needs default-mode verification for shield, ranged weapon, food/potion, block and entity interaction priority; the optional sneaking and dedicated-key alternatives need representative checks as well.
+- Physical right-click input still needs default-mode verification for shield, ranged weapon, food/potion, block and entity interaction priority; the optional sneaking restriction needs representative checks as well.
 - Better Combat, Combatify, representative modded weapons, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
 - Standard NeoForge attack-hook visibility and zero synthetic equipment-change events are automated, but actual third-party weapon and equipment-observer mods still require external fixtures before compatibility can be claimed.
