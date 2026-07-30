@@ -4,11 +4,23 @@ This document records which visual assets may be reused in OffHandCombat and wha
 
 ## Current distributable
 
-The current NeoForge 1.21.1 source tree and distributable JAR contain no PNG, JPEG, GIF, SVG or WebP image assets. No third-party image is currently shipped.
+The NeoForge 1.21.1 source tree includes one project icon:
+
+- repository path: `src/main/resources/offhandcombat.png`
+- dimensions: 190 × 190
+- file size: 1,369 bytes
+- SHA-256: `3bc64a58d106e96ad93d41f3b3588a4181137aeaae843a6a87d74d078e0c7f49`
+- Git blob SHA: `8558ce7c0234cb24ac41bc486f238f2a9dfc4722`
+- source: exact PNG supplied by repository owner `nekomario28` for this fork on 2026-07-30
+- modification status: included byte-for-byte; no transparency conversion, recoloring, resampling, smoothing or other image edit was applied
+
+The repository owner explicitly approved adoption of this exact image as the fork icon. It is distributed as part of this MIT-licensed repository based on that instruction. If the supplied image is later found to originate from a third party, this record and the release permission must be corrected before publication.
+
+NeoForge metadata references the file as `logoFile="offhandcombat.png"`.
 
 ## Upstream repository icon
 
-The original project contains a mod icon at:
+The original project contains a separate mod icon at:
 
 - repository: `BunnyCinnamon/OffHandCombat`
 - revision: `e7df3ad2eec858407dd371cdfde574b35d0322c4`
@@ -19,11 +31,11 @@ The original project contains a mod icon at:
 
 The original Fabric metadata explicitly names this file as the project icon. The file is stored inside the upstream repository governed by its root MIT License, and no separate asset exception was found. It may therefore be copied, modified and redistributed under that MIT grant, provided the original copyright and license notice remain available in `LICENSE` and the source is recorded in `THIRD_PARTY_NOTICES.md`.
 
-This conclusion applies to that exact repository asset and revision. It does not automatically cover visually similar files hosted elsewhere.
+The current fork icon is not this upstream file. This conclusion applies only to the exact upstream repository asset and revision and does not automatically cover visually similar files hosted elsewhere.
 
 ## Required checks before adding the upstream icon
 
-Before the icon is included in a release:
+Before the upstream icon is included in a release:
 
 1. obtain it from the exact repository path and revision above;
 2. verify the Git blob SHA;
@@ -57,10 +69,6 @@ Minecraft screenshots and fan-created material are governed in addition by the c
 - do not redistribute extracted game graphics or textures as standalone project assets;
 - prefer original artwork that merely describes the mod's off-hand combat concept;
 - re-check the current Usage Guidelines before publication because those permissions may change.
-
-## Preferred release artwork
-
-The lowest-risk option is a new original icon created specifically for this fork, with no copied Minecraft texture, official logo, third-party character or unlicensed font. Record its author, creation date and license in this document before shipping it.
 
 ## Release checklist
 
