@@ -36,7 +36,7 @@ RLO-style alternating attacks clear `invulnerableTime` and `lastHurt` to force a
 
 Injecting at the head of `Minecraft.startUseItem` steals shield, bow, crossbow, food, potion, door, container, trading and mounting interactions.
 
-**Replacement:** a dedicated key is the default. It is restricted to `KeyConflictContext.IN_GAME`, and the request path explicitly rejects input while a `Screen` is open. Optional legacy modes observe NeoForge's per-hand input event and only cancel after an off-hand request is actually sent. External arbitration rules can deny conversion.
+**Replacement:** right-click is the default through NeoForge's per-hand input event rather than an early `Minecraft.startUseItem` injection. Conversion occurs only on the `OFF_HAND` pass and cancels vanilla use only after an off-hand request is actually sent, so normal main-hand item and entity interactions retain priority. The dedicated `V` key remains an optional `KeyConflictContext.IN_GAME` fallback, and the request path rejects input while a `Screen` is open. External arbitration rules can deny conversion.
 
 ### Brittle animation redirects
 
@@ -139,6 +139,6 @@ CI evidence artifact ZIP SHA-256:
 ## Remaining release risks
 
 - Server-only installation still needs an actual vanilla client connection test; a NeoForge peer without Off Hand Combat may be used as an additional mismatch test but must not be mislabeled as the vanilla-client gate.
-- Physical shield, ranged weapon, food/potion, block and entity interaction priority remains necessary for opt-in legacy input modes.
+- Physical right-click input still needs default-mode verification for shield, ranged weapon, food/potion, block and entity interaction priority; the optional sneaking and dedicated-key alternatives need representative checks as well.
 - Better Combat, Combatify, representative modded weapons, accessory attributes and animation/performance Mixins need concrete adapters or representative modpack tests.
 - Standard NeoForge attack-hook visibility and zero synthetic equipment-change events are automated, but actual third-party weapon and equipment-observer mods still require external fixtures before compatibility can be claimed.

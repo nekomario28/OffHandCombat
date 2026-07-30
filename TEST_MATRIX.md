@@ -6,7 +6,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 
 - [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping, custom reach approximation and static UUID state.
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
-- [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
+- [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class, selected project icon and English/Japanese language files.
 - [x] **A** Physical client reaches its first client tick under Xvfb.
 - [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
@@ -15,7 +15,8 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** Two separate Xvfb client processes connect through vanilla `ConnectScreen` to one separately launched Dedicated Server; each performs an independent sequence-1 dedicated-key attack and duplicate replay without a second effect.
 - [x] **G** One physical Xvfb client completes an actual disconnect/reconnect, death/respawn and Overworld-to-Nether transition against a separate Dedicated Server while replay and durability state follow the lifecycle contract.
 - [x] **G** A physical Xvfb client and separate Dedicated Server complete invalid-sequence, duplicate-flood, reordered-sequence and unique-sequence burst trials over loopback with `netem` delay `120ms ± 20ms`; execution remains exactly once and recovers after the burst.
-- [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical input.
+- [ ] **M** The default `USE_KEY_ALWAYS` mode performs one right-click off-hand attack against a targeted entity.
+- [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical right-click input.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
 ## Protocol and lifecycle
@@ -31,8 +32,8 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
-- [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
-- [x] **G** An actual Overworld-to-Nether transition preserves the active client/server replay anchor and off-hand stack state; the next accepted attack advances to sequence `2` with durability `1 → 2` without duplication or loss.
+- [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh client/server transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
+- [x] **G** An actual Overworld-to-Nether transition preserves the active client/server replay anchor and off-hand stack state; the next attack advances to sequence `2` with durability `1 → 2` without duplication or loss.
 - [x] **G** Under `120ms ± 20ms` loopback delay, 64 duplicate sequence-1 requests replay one cached result, sequence `3` executes before delayed sequence `2`, sequence `2` is stale, a unique burst `5–68` is rate-limited without extra damage/durability, and sequence `69` subsequently executes once.
 
 ## Cross-hand cooldown
@@ -60,9 +61,10 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 
 ## Input priority
 
-- [x] **G** the registered dedicated key triggers a real in-world client → server off-hand attack without replacing vanilla use.
+- [x] **A** the client config defaults to `USE_KEY_ALWAYS`, making right-click the standard off-hand attack input.
+- [ ] **M** the default right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent.
+- [x] **G** the optional registered dedicated key triggers a real in-world client → server off-hand attack without replacing vanilla use.
 - [x] **G** the dedicated key uses the `IN_GAME` conflict context and produces no request, result, damage or durability change while a Screen is open.
-- [ ] **M** legacy use-key mode only converts the OFF_HAND pass.
 - [ ] **M** shield priority.
 - [ ] **M** bow, crossbow and trident use.
 - [ ] **M** food and potion use.

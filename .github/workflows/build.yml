@@ -149,7 +149,8 @@ jobs:
             offhandcombat.mixins.json \
             dev/nekomario/offhandcombat/OffHandCombat.class \
             assets/offhandcombat/lang/en_us.json \
-            assets/offhandcombat/lang/ja_jp.json
+            assets/offhandcombat/lang/ja_jp.json \
+            offhandcombat.png
           do
             jar tf "$jar_file" | grep -Fqx "$entry"
           done

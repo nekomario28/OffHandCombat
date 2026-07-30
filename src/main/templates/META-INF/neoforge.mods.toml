@@ -9,8 +9,9 @@ version="${mod_version}"
 displayName="${mod_name}"
 displayURL="https://github.com/nekomario28/OffHandCombat"
 authors="Arekkuusu, BunnyCinnamon, nekomario28 contributors"
+logoFile="offhandcombat.png"
 description="""
-Enables server-validated melee attacks with a weapon held in the off hand while preserving normal main-hand interaction priority.
+Enables right-click off-hand melee attacks with server-validated targeting while preserving normal main-hand interaction priority.
 """
 
 [[mixins]]

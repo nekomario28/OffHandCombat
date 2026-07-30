@@ -13,19 +13,19 @@ This fork preserves the original MIT attribution while redesigning networking, a
 - No static UUID maps, real inventory swaps, live attribute-map mutation, or invulnerability-frame clearing.
 - A copied attack attribute view is active only while the authoritative vanilla `Player.attack` path executes.
 - Stable request sequence IDs, duplicate result replay and explicit failure statuses.
-- Dedicated off-hand attack key by default (`V`). Legacy use-key conversion is an explicit client opt-in.
+- Right-click is the default off-hand attack input. The dedicated `V` key remains an optional compatibility fallback.
 - Vanilla off-hand swing animation is used; the old ordinal-heavy parallel animation redirects are not retained.
 
 ## Controls
 
-Put an eligible melee weapon in the off hand, aim at an entity and press `V`.
+Put an eligible melee weapon in the off hand, aim at an entity and right-click.
 
-The client config supports two optional legacy modes:
+The default client mode is `USE_KEY_ALWAYS`. It converts only the `OFF_HAND` pass of NeoForge's use-input pipeline and cancels vanilla use only after an off-hand attack request is actually sent. Normal main-hand item and entity interactions therefore retain priority.
 
-- `USE_KEY_WHEN_SNEAKING`
-- `USE_KEY_ALWAYS`
+Alternative client modes are:
 
-They convert only the OFF_HAND pass of NeoForge's use-input pipeline. Main-hand item and entity interactions retain priority. The dedicated key remains the recommended mode.
+- `USE_KEY_WHEN_SNEAKING`: right-click attacks from the off hand only while sneaking.
+- `DEDICATED_KEY`: uses the dedicated `V` key instead of converting right-click.
 
 ## Compatibility registration
 
