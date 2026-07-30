@@ -6,7 +6,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 
 - [x] **A** Static audit rejects vanilla packet mutation, hurt-immunity reset, live inventory swapping, custom reach approximation and static UUID state.
 - [x] **A** Java 21 `clean test build` succeeds against NeoForge 21.1.242.
-- [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class and English/Japanese language files.
+- [x] **A** Distributable JAR contains the MIT license, NeoForge metadata, Mixin config, main class, selected project icon and English/Japanese language files.
 - [x] **A** Physical client reaches its first client tick under Xvfb.
 - [x] **G** A copied dedicated-server world is opened through Minecraft's world-open flow on an integrated client/server.
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
@@ -32,7 +32,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [ ] **M** Server-only installation accepts vanilla clients and remains idle.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
-- [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
+- [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh client/server transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** An actual Overworld-to-Nether transition preserves the active client/server replay anchor and off-hand stack state; the next attack advances to sequence `2` with durability `1 → 2` without duplication or loss.
 - [x] **G** Under `120ms ± 20ms` loopback delay, 64 duplicate sequence-1 requests replay one cached result, sequence `3` executes before delayed sequence `2`, sequence `2` is stale, a unique burst `5–68` is rate-limited without extra damage/durability, and sequence `69` subsequently executes once.
 
