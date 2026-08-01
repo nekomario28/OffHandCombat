@@ -160,7 +160,7 @@ public final class OffhandClientWorldE2EHarness {
                 player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.WOODEN_SWORD));
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
                 player.getFoodData().setFoodLevel(10);
-                player.getInventory().add(new ItemStack(Items.ARROW, 64));
+                player.getInventory().setItem(0, new ItemStack(Items.ARROW, 64));
 
                 Mob target = createTarget(player);
                 if (target == null) {
