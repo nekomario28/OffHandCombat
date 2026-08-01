@@ -51,14 +51,12 @@ public final class OffhandInteractionPriorityE2EHarness {
         if (!Boolean.getBoolean(ENABLE_PROPERTY) || phase == Phase.PASSED || phase == Phase.FAILED) {
             return;
         }
-
         try {
             clientTicks++;
             if (clientTicks > TIMEOUT_CLIENT_TICKS) {
                 fail("timed out in phase " + phase);
                 return;
             }
-
             Minecraft minecraft = Minecraft.getInstance();
             switch (phase) {
                 case WAITING_FOR_WORLD -> openWorld(minecraft);
@@ -99,7 +97,6 @@ public final class OffhandInteractionPriorityE2EHarness {
         if (minecraft.level == null || minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             return;
         }
-
         phase = Phase.SETTING_UP;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
@@ -113,9 +110,8 @@ public final class OffhandInteractionPriorityE2EHarness {
                 player.setGameMode(GameType.SURVIVAL);
                 player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
-                baselineSequence = player
-                        .getData(OffhandCombatAttachments.COMBAT_STATE)
-                        .lastNetworkSequence();
+                baselineSequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).lastNetworkSequence();
+                // Legacy rerun anchor: interactionPos = player.blockPosition().offset(0, 2, 2);
                 interactionPos = player.blockPosition().above().relative(Direction.SOUTH, 2);
                 setupButton(player);
                 phase = Phase.WAITING_FOR_BUTTON_SYNC;
@@ -128,8 +124,7 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static void setupButton(ServerPlayer player) {
         clearArea(player);
         player.serverLevel().setBlockAndUpdate(
-                interactionPos.relative(Direction.SOUTH),
-                Blocks.STONE.defaultBlockState());
+                interactionPos.relative(Direction.SOUTH), Blocks.STONE.defaultBlockState());
         BlockState button = Blocks.STONE_BUTTON.defaultBlockState()
                 .setValue(BlockStateProperties.ATTACH_FACE, AttachFace.WALL)
                 .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
@@ -162,8 +157,7 @@ public final class OffhandInteractionPriorityE2EHarness {
                 .setValue(BlockStateProperties.POWERED, false);
         player.serverLevel().setBlockAndUpdate(interactionPos, lower);
         player.serverLevel().setBlockAndUpdate(
-                interactionPos.above(),
-                lower.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER));
+                interactionPos.above(), lower.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER));
         interactionPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.35D);
         deadline = clientTicks + SYNC_TIMEOUT_TICKS;
     }
@@ -210,26 +204,15 @@ public final class OffhandInteractionPriorityE2EHarness {
             failOnDeadline(interaction + " did not synchronize to the client");
             return;
         }
-
-        BlockHitResult hit = new BlockHitResult(
-                interactionPoint,
-                Direction.NORTH,
-                interactionPos,
-                false);
+        BlockHitResult hit = new BlockHitResult(interactionPoint, Direction.NORTH, interactionPos, false);
         minecraft.hitResult = hit;
         if (offhandHandlerWouldConsumeBlockInput()) {
             fail(interaction + " block input was incorrectly converted into an off-hand attack");
             return;
         }
-
-        var vanillaResult = minecraft.gameMode.useItemOn(
-                minecraft.player,
-                InteractionHand.MAIN_HAND,
-                hit);
+        var vanillaResult = minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.MAIN_HAND, hit);
         OffHandCombat.LOGGER.info(
-                "Off Hand Combat interaction priority vanilla result for {}: {}",
-                interaction,
-                vanillaResult);
+                "Off Hand Combat interaction priority vanilla result for {}: {}", interaction, vanillaResult);
         deadline = clientTicks + RESULT_TIMEOUT_TICKS;
         phase = switch (phase) {
             case WAITING_FOR_BUTTON_SYNC -> Phase.WAITING_FOR_BUTTON_RESULT;
@@ -241,9 +224,7 @@ public final class OffhandInteractionPriorityE2EHarness {
 
     private static boolean offhandHandlerWouldConsumeBlockInput() {
         try {
-            Method method = ClientInputHandler.class.getDeclaredMethod(
-                    "trySendAttack",
-                    OffhandInputSource.class);
+            Method method = ClientInputHandler.class.getDeclaredMethod("trySendAttack", OffhandInputSource.class);
             method.setAccessible(true);
             return (boolean) method.invoke(null, OffhandInputSource.USE_KEY);
         } catch (ReflectiveOperationException exception) {
@@ -251,15 +232,11 @@ public final class OffhandInteractionPriorityE2EHarness {
         }
     }
 
-    private static void verifyServerAndAdvance(
-            Minecraft minecraft,
-            String interaction,
-            ServerAdvance advance) {
+    private static void verifyServerAndAdvance(Minecraft minecraft, String interaction, ServerAdvance advance) {
         if (minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             fail("integrated server was unavailable while verifying " + interaction);
             return;
         }
-
         phase = Phase.VERIFYING;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
@@ -279,8 +256,7 @@ public final class OffhandInteractionPriorityE2EHarness {
                     fail(interaction + " consumed off-hand durability");
                     return;
                 }
-                OffHandCombat.LOGGER.info(
-                        "Off Hand Combat interaction priority E2E passed for {}", interaction);
+                OffHandCombat.LOGGER.info("Off Hand Combat interaction priority E2E passed for {}", interaction);
                 advance.run(player);
             } catch (Throwable throwable) {
                 fail(interaction + " server verification exception", throwable);
@@ -292,8 +268,7 @@ public final class OffhandInteractionPriorityE2EHarness {
         player.serverLevel().setBlockAndUpdate(interactionPos, Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.above(), Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.below(), Blocks.AIR.defaultBlockState());
-        player.serverLevel().setBlockAndUpdate(
-                interactionPos.relative(Direction.SOUTH), Blocks.AIR.defaultBlockState());
+        player.serverLevel().setBlockAndUpdate(interactionPos.relative(Direction.SOUTH), Blocks.AIR.defaultBlockState());
     }
 
     private static void failOnDeadline(String reason) {
@@ -312,8 +287,7 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static void fail(String reason, Throwable throwable) {
         if (phase != Phase.FAILED) {
             phase = Phase.FAILED;
-            OffHandCombat.LOGGER.error(
-                    "Off Hand Combat interaction priority E2E failed: {}", reason, throwable);
+            OffHandCombat.LOGGER.error("Off Hand Combat interaction priority E2E failed: {}", reason, throwable);
         }
     }
 
