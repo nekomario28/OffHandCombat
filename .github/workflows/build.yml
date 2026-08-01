@@ -104,6 +104,41 @@ jobs:
           elif arm_new not in text:
               raise SystemExit('attack arming block was not recognized')
 
+          field_old = "    private static volatile float rapidHealthBefore;\n"
+          field_new = field_old + "    private static int rapidClickPresses;\n"
+          if field_new not in text:
+              if text.count(field_old) != 1:
+                  raise SystemExit('rapid-click field anchor was not recognized')
+              text = text.replace(field_old, field_new, 1)
+
+          setup_old = "                rapidHealthBefore = target.getHealth();\n"
+          setup_new = setup_old + "                rapidClickPresses = 0;\n"
+          if setup_new not in text:
+              if text.count(setup_old) != 1:
+                  raise SystemExit('rapid-click setup anchor was not recognized')
+              text = text.replace(setup_old, setup_new, 1)
+
+          rapid_old = (
+              "        minecraft.hitResult = new EntityHitResult(target);\n"
+              "        KeyMapping.click(minecraft.options.keyUse.getKey());\n"
+              "        KeyMapping.click(minecraft.options.keyUse.getKey());\n"
+              "        rapidClickDeadline = clientTicks + RAPID_CLICK_TIMEOUT_TICKS;\n"
+              "        phase = Phase.WAITING_FOR_RAPID_CLICK_RESULT;\n"
+          )
+          rapid_new = (
+              "        minecraft.hitResult = new EntityHitResult(target);\n"
+              "        KeyMapping.click(minecraft.options.keyUse.getKey());\n"
+              "        rapidClickPresses++;\n"
+              "        rapidClickDeadline = clientTicks + RAPID_CLICK_TIMEOUT_TICKS;\n"
+              "        if (rapidClickPresses >= 2) {\n"
+              "            phase = Phase.WAITING_FOR_RAPID_CLICK_RESULT;\n"
+              "        }\n"
+          )
+          if rapid_old in text:
+              text = text.replace(rapid_old, rapid_new, 1)
+          elif rapid_new not in text:
+              raise SystemExit('rapid-click trigger block was not recognized')
+
           source.write_text(text)
           digest = sha256(source.read_bytes()).hexdigest()
           suffix = f'  {source.as_posix()}'
