@@ -3,6 +3,7 @@ set -euo pipefail
 
 TIMEOUT_SECONDS="${1:-240}"
 LOG_FILE="client-world-e2e.log"
+PREP_LOG_FILE="client-world-prepare.log"
 SUCCESS_MARKER="Off Hand Combat client world E2E passed"
 FAILURE_MARKER="Off Hand Combat client world E2E failed"
 WORLD_SOURCE="run/world"
@@ -38,13 +39,56 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+prepare_smoke_world() {
+  local prep_pid latest_log ready
+  rm -rf "$WORLD_SOURCE"
+  mkdir -p run run/server
+  printf 'eula=true\n' > run/eula.txt
+  printf 'eula=true\n' > run/server/eula.txt
+  printf 'online-mode=false\nserver-port=0\nlevel-name=world\n' > run/server.properties
+  : > "$PREP_LOG_FILE"
+
+  setsid gradle --no-daemon runServer > "$PREP_LOG_FILE" 2>&1 &
+  prep_pid=$!
+  latest_log=""
+  ready=0
+
+  for _ in $(seq 1 180); do
+    latest_log="$(find run -type f -path '*/logs/latest.log' -print -quit 2>/dev/null || true)"
+    if [[ -n "$latest_log" ]] && grep -Fq 'Done (' "$latest_log"; then
+      ready=1
+      break
+    fi
+    if ! kill -0 "$prep_pid" 2>/dev/null; then
+      cat "$PREP_LOG_FILE"
+      [[ -n "$latest_log" ]] && cat "$latest_log"
+      return 1
+    fi
+    sleep 1
+  done
+
+  kill -INT -- "-$prep_pid" 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    kill -0 "$prep_pid" 2>/dev/null || break
+    sleep 1
+  done
+  kill -KILL -- "-$prep_pid" 2>/dev/null || true
+  wait "$prep_pid" 2>/dev/null || true
+
+  if [[ "$ready" -ne 1 || ! -f "$WORLD_SOURCE/level.dat" ]]; then
+    cat "$PREP_LOG_FILE"
+    [[ -n "$latest_log" ]] && cat "$latest_log"
+    echo "Failed to prepare dedicated-server smoke world" >&2
+    return 1
+  fi
+}
+
 if ! command -v xvfb-run >/dev/null 2>&1; then
   echo "xvfb-run is unavailable" >&2
   exit 1
 fi
 if [[ ! -f "$WORLD_SOURCE/level.dat" ]]; then
-  echo "Dedicated-server smoke world is unavailable at $WORLD_SOURCE" >&2
-  exit 1
+  prepare_smoke_world
 fi
 
 rm -rf "$WORLD_DESTINATION"
