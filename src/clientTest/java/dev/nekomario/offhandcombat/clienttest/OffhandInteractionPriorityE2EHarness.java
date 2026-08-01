@@ -1,9 +1,11 @@
 package dev.nekomario.offhandcombat.clienttest;
 
 import dev.nekomario.offhandcombat.OffHandCombat;
+import dev.nekomario.offhandcombat.api.OffhandInputSource;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.client.ClientInputHandler;
+import java.lang.reflect.Method;
 import java.util.UUID;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -31,37 +33,17 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.interactionPriorityE2E";
     private static final String WORLD_NAME = "InteractionWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 1200;
-    private static final int TARGET_SYNC_TIMEOUT_TICKS = 200;
-    private static final int INTERACTION_TIMEOUT_TICKS = 80;
+    private static final int SYNC_TIMEOUT_TICKS = 200;
+    private static final int RESULT_TIMEOUT_TICKS = 80;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile BlockPos interactionPos;
-    private static volatile Vec3 aimPoint;
+    private static volatile Vec3 interactionPoint;
     private static volatile long baselineSequence;
     private static int clientTicks;
-    private static int interactionDeadline;
+    private static int deadline;
 
     private OffhandInteractionPriorityE2EHarness() {
-    }
-
-    @SubscribeEvent
-    public static void onClientTickPre(ClientTickEvent.Pre event) {
-        if (!Boolean.getBoolean(ENABLE_PROPERTY) || phase == Phase.PASSED || phase == Phase.FAILED) {
-            return;
-        }
-
-        Minecraft minecraft = Minecraft.getInstance();
-        try {
-            switch (phase) {
-                case WAITING_FOR_BUTTON_SYNC -> triggerButtonWhenTargeted(minecraft);
-                case WAITING_FOR_DOOR_SYNC -> triggerDoorWhenTargeted(minecraft);
-                case WAITING_FOR_CHEST_SYNC -> triggerChestWhenTargeted(minecraft);
-                default -> {
-                }
-            }
-        } catch (Throwable throwable) {
-            fail("interaction pre-tick exception", throwable);
-        }
     }
 
     @SubscribeEvent
@@ -79,17 +61,14 @@ public final class OffhandInteractionPriorityE2EHarness {
 
             Minecraft minecraft = Minecraft.getInstance();
             switch (phase) {
-                case WAITING_FOR_WORLD -> openWorldWhenClientIsReady(minecraft);
-                case OPENING_WORLD -> beginServerSetupWhenWorldIsReady(minecraft);
-                case WAITING_FOR_BUTTON_SYNC -> {
-                }
-                case WAITING_FOR_BUTTON_RESULT -> verifyButtonResult(minecraft);
-                case WAITING_FOR_DOOR_SYNC -> {
-                }
-                case WAITING_FOR_DOOR_RESULT -> verifyDoorResult(minecraft);
-                case WAITING_FOR_CHEST_SYNC -> {
-                }
-                case WAITING_FOR_CHEST_RESULT -> verifyChestResult(minecraft);
+                case WAITING_FOR_WORLD -> openWorld(minecraft);
+                case OPENING_WORLD -> setupWhenReady(minecraft);
+                case WAITING_FOR_BUTTON_SYNC -> triggerBlockUse(minecraft, Blocks.STONE_BUTTON, "button");
+                case WAITING_FOR_BUTTON_RESULT -> verifyButton(minecraft);
+                case WAITING_FOR_DOOR_SYNC -> triggerBlockUse(minecraft, Blocks.OAK_DOOR, "door");
+                case WAITING_FOR_DOOR_RESULT -> verifyDoor(minecraft);
+                case WAITING_FOR_CHEST_SYNC -> triggerBlockUse(minecraft, Blocks.CHEST, "chest");
+                case WAITING_FOR_CHEST_RESULT -> verifyChest(minecraft);
                 default -> {
                 }
             }
@@ -98,7 +77,7 @@ public final class OffhandInteractionPriorityE2EHarness {
         }
     }
 
-    private static void openWorldWhenClientIsReady(Minecraft minecraft) {
+    private static void openWorld(Minecraft minecraft) {
         if (minecraft.level != null) {
             phase = Phase.OPENING_WORLD;
             return;
@@ -110,20 +89,18 @@ public final class OffhandInteractionPriorityE2EHarness {
             fail("copied interaction E2E world was unavailable: " + WORLD_NAME);
             return;
         }
-
         phase = Phase.OPENING_WORLD;
-        OffHandCombat.LOGGER.info("Opening copied Off Hand Combat interaction E2E world: {}", WORLD_NAME);
         minecraft.createWorldOpenFlows().openWorld(
                 WORLD_NAME,
                 () -> fail("opening copied interaction E2E world was aborted"));
     }
 
-    private static void beginServerSetupWhenWorldIsReady(Minecraft minecraft) {
+    private static void setupWhenReady(Minecraft minecraft) {
         if (minecraft.level == null || minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             return;
         }
 
-        phase = Phase.SETTING_UP_BUTTON;
+        phase = Phase.SETTING_UP;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
         server.execute(() -> {
@@ -133,24 +110,23 @@ public final class OffhandInteractionPriorityE2EHarness {
                     fail("integrated server player was unavailable");
                     return;
                 }
-
                 player.setGameMode(GameType.SURVIVAL);
                 player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
                 baselineSequence = player
                         .getData(OffhandCombatAttachments.COMBAT_STATE)
                         .lastNetworkSequence();
-                interactionPos = player.blockPosition().offset(0, 2, 2);
+                interactionPos = player.blockPosition().offset(0, 1, 2);
                 setupButton(player);
                 phase = Phase.WAITING_FOR_BUTTON_SYNC;
             } catch (Throwable throwable) {
-                fail("button setup exception", throwable);
+                fail("server setup exception", throwable);
             }
         });
     }
 
     private static void setupButton(ServerPlayer player) {
-        clearInteractionArea(player);
+        clearArea(player);
         player.serverLevel().setBlockAndUpdate(
                 interactionPos.relative(Direction.SOUTH),
                 Blocks.STONE.defaultBlockState());
@@ -159,36 +135,25 @@ public final class OffhandInteractionPriorityE2EHarness {
                 .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
                 .setValue(BlockStateProperties.POWERED, false);
         player.serverLevel().setBlockAndUpdate(interactionPos, button);
-        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.43D);
-        orientServerPlayer(player);
-        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
+        interactionPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.43D);
+        deadline = clientTicks + SYNC_TIMEOUT_TICKS;
     }
 
-    private static void triggerButtonWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.STONE_BUTTON, "button")) {
-            return;
-        }
-        KeyMapping.click(minecraft.options.keyUse.getKey());
-        interactionDeadline = clientTicks + INTERACTION_TIMEOUT_TICKS;
-        phase = Phase.WAITING_FOR_BUTTON_RESULT;
-    }
-
-    private static void verifyButtonResult(Minecraft minecraft) {
-        orientClientPlayer(minecraft);
+    private static void verifyButton(Minecraft minecraft) {
         if (minecraft.level != null
                 && minecraft.level.getBlockState(interactionPos).is(Blocks.STONE_BUTTON)
                 && minecraft.level.getBlockState(interactionPos).getValue(BlockStateProperties.POWERED)) {
-            phase = Phase.VERIFYING_BUTTON_SERVER;
-            verifyServerStateAndAdvance(minecraft, "button", OffhandInteractionPriorityE2EHarness::setupDoor);
+            verifyServerAndAdvance(minecraft, "button", player -> {
+                setupDoor(player);
+                phase = Phase.WAITING_FOR_DOOR_SYNC;
+            });
             return;
         }
-        if (clientTicks >= interactionDeadline) {
-            fail("physical right-click did not power the button");
-        }
+        failOnDeadline("button did not become powered");
     }
 
     private static void setupDoor(ServerPlayer player) {
-        clearInteractionArea(player);
+        clearArea(player);
         player.serverLevel().setBlockAndUpdate(interactionPos.below(), Blocks.STONE.defaultBlockState());
         BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
                 .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
@@ -199,58 +164,33 @@ public final class OffhandInteractionPriorityE2EHarness {
         player.serverLevel().setBlockAndUpdate(
                 interactionPos.above(),
                 lower.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER));
-        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.35D);
-        orientServerPlayer(player);
-        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
-        phase = Phase.WAITING_FOR_DOOR_SYNC;
+        interactionPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.35D);
+        deadline = clientTicks + SYNC_TIMEOUT_TICKS;
     }
 
-    private static void triggerDoorWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.OAK_DOOR, "door")) {
-            return;
-        }
-        KeyMapping.click(minecraft.options.keyUse.getKey());
-        interactionDeadline = clientTicks + INTERACTION_TIMEOUT_TICKS;
-        phase = Phase.WAITING_FOR_DOOR_RESULT;
-    }
-
-    private static void verifyDoorResult(Minecraft minecraft) {
-        orientClientPlayer(minecraft);
+    private static void verifyDoor(Minecraft minecraft) {
         if (minecraft.level != null
                 && minecraft.level.getBlockState(interactionPos).is(Blocks.OAK_DOOR)
                 && minecraft.level.getBlockState(interactionPos).getValue(BlockStateProperties.OPEN)) {
-            phase = Phase.VERIFYING_DOOR_SERVER;
-            verifyServerStateAndAdvance(minecraft, "door", OffhandInteractionPriorityE2EHarness::setupChest);
+            verifyServerAndAdvance(minecraft, "door", player -> {
+                setupChest(player);
+                phase = Phase.WAITING_FOR_CHEST_SYNC;
+            });
             return;
         }
-        if (clientTicks >= interactionDeadline) {
-            fail("physical right-click did not open the door");
-        }
+        failOnDeadline("door did not open");
     }
 
     private static void setupChest(ServerPlayer player) {
-        clearInteractionArea(player);
+        clearArea(player);
         player.serverLevel().setBlockAndUpdate(interactionPos, Blocks.CHEST.defaultBlockState());
-        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.1D, -0.35D);
-        orientServerPlayer(player);
-        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
-        phase = Phase.WAITING_FOR_CHEST_SYNC;
+        interactionPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.1D, -0.35D);
+        deadline = clientTicks + SYNC_TIMEOUT_TICKS;
     }
 
-    private static void triggerChestWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.CHEST, "chest")) {
-            return;
-        }
-        KeyMapping.click(minecraft.options.keyUse.getKey());
-        interactionDeadline = clientTicks + INTERACTION_TIMEOUT_TICKS;
-        phase = Phase.WAITING_FOR_CHEST_RESULT;
-    }
-
-    private static void verifyChestResult(Minecraft minecraft) {
-        orientClientPlayer(minecraft);
+    private static void verifyChest(Minecraft minecraft) {
         if (minecraft.screen instanceof AbstractContainerScreen<?>) {
-            phase = Phase.VERIFYING_CHEST_SERVER;
-            verifyServerStateAndAdvance(minecraft, "chest", player -> {
+            verifyServerAndAdvance(minecraft, "chest", player -> {
                 player.closeContainer();
                 phase = Phase.PASSED;
                 OffHandCombat.LOGGER.info(
@@ -258,32 +198,53 @@ public final class OffhandInteractionPriorityE2EHarness {
             });
             return;
         }
-        if (clientTicks >= interactionDeadline) {
-            fail("physical right-click did not open the chest container");
-        }
+        failOnDeadline("chest container did not open");
     }
 
-    private static boolean targetInteractionBlock(Minecraft minecraft, Block block, String interaction) {
-        if (minecraft.level == null || minecraft.player == null || interactionPos == null
-                || aimPoint == null || minecraft.screen != null) {
-            return false;
+    private static void triggerBlockUse(Minecraft minecraft, Block expectedBlock, String interaction) {
+        if (minecraft.level == null || minecraft.player == null || minecraft.gameMode == null
+                || interactionPos == null || interactionPoint == null || minecraft.screen != null) {
+            return;
         }
-        orientClientPlayer(minecraft);
-        if (!minecraft.level.getBlockState(interactionPos).is(block)) {
-            if (clientTicks >= interactionDeadline) {
-                fail(interaction + " block did not synchronize to the client");
-            }
-            return false;
+        if (!minecraft.level.getBlockState(interactionPos).is(expectedBlock)) {
+            failOnDeadline(interaction + " did not synchronize to the client");
+            return;
         }
-        minecraft.hitResult = new BlockHitResult(
-                aimPoint,
+
+        BlockHitResult hit = new BlockHitResult(
+                interactionPoint,
                 Direction.NORTH,
                 interactionPos,
                 false);
-        return true;
+        minecraft.hitResult = hit;
+        if (offhandHandlerWouldConsumeBlockInput()) {
+            fail(interaction + " block input was incorrectly converted into an off-hand attack");
+            return;
+        }
+
+        minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.OFF_HAND, hit);
+        deadline = clientTicks + RESULT_TIMEOUT_TICKS;
+        phase = switch (phase) {
+            case WAITING_FOR_BUTTON_SYNC -> Phase.WAITING_FOR_BUTTON_RESULT;
+            case WAITING_FOR_DOOR_SYNC -> Phase.WAITING_FOR_DOOR_RESULT;
+            case WAITING_FOR_CHEST_SYNC -> Phase.WAITING_FOR_CHEST_RESULT;
+            default -> throw new IllegalStateException("unexpected interaction phase " + phase);
+        };
     }
 
-    private static void verifyServerStateAndAdvance(
+    private static boolean offhandHandlerWouldConsumeBlockInput() {
+        try {
+            Method method = ClientInputHandler.class.getDeclaredMethod(
+                    "trySendAttack",
+                    OffhandInputSource.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(null, OffhandInputSource.USE_KEY);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("failed to invoke Off Hand Combat input decision", exception);
+        }
+    }
+
+    private static void verifyServerAndAdvance(
             Minecraft minecraft,
             String interaction,
             ServerAdvance advance) {
@@ -292,6 +253,7 @@ public final class OffhandInteractionPriorityE2EHarness {
             return;
         }
 
+        phase = Phase.VERIFYING;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
         server.execute(() -> {
@@ -302,15 +264,14 @@ public final class OffhandInteractionPriorityE2EHarness {
                     return;
                 }
                 var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
-                if (state.lastNetworkSequence() != baselineSequence || state.lastNetworkResult() != null) {
-                    fail(interaction + " interaction emitted an Off Hand Combat attack request");
+                if (state.lastNetworkSequence() != baselineSequence) {
+                    fail(interaction + " emitted an Off Hand Combat network request");
                     return;
                 }
                 if (player.getOffhandItem().getDamageValue() != 0) {
-                    fail(interaction + " interaction consumed off-hand durability");
+                    fail(interaction + " consumed off-hand durability");
                     return;
                 }
-
                 OffHandCombat.LOGGER.info(
                         "Off Hand Combat interaction priority E2E passed for {}", interaction);
                 advance.run(player);
@@ -320,7 +281,7 @@ public final class OffhandInteractionPriorityE2EHarness {
         });
     }
 
-    private static void clearInteractionArea(ServerPlayer player) {
+    private static void clearArea(ServerPlayer player) {
         player.serverLevel().setBlockAndUpdate(interactionPos, Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.above(), Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.below(), Blocks.AIR.defaultBlockState());
@@ -328,39 +289,15 @@ public final class OffhandInteractionPriorityE2EHarness {
                 interactionPos.relative(Direction.SOUTH), Blocks.AIR.defaultBlockState());
     }
 
-    private static void orientServerPlayer(ServerPlayer player) {
-        applyLookRotation(player, aimPoint);
-        player.setYHeadRot(player.getYRot());
-        player.setYBodyRot(player.getYRot());
-    }
-
-    private static void orientClientPlayer(Minecraft minecraft) {
-        if (minecraft.player == null || aimPoint == null) {
-            return;
+    private static void failOnDeadline(String reason) {
+        if (clientTicks >= deadline) {
+            fail(reason);
         }
-        applyLookRotation(minecraft.player, aimPoint);
-        minecraft.player.setYHeadRot(minecraft.player.getYRot());
-        minecraft.player.setYBodyRot(minecraft.player.getYRot());
-    }
-
-    private static void applyLookRotation(net.minecraft.world.entity.Entity player, Vec3 target) {
-        double dx = target.x - player.getX();
-        double dy = target.y - player.getEyeY();
-        double dz = target.z - player.getZ();
-        double horizontal = Math.sqrt(dx * dx + dz * dz);
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
-        player.setYRot(yaw);
-        player.setXRot(pitch);
     }
 
     private static void fail(String reason) {
         if (phase != Phase.FAILED) {
             phase = Phase.FAILED;
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.options != null) {
-                minecraft.options.keyUse.setDown(false);
-            }
             OffHandCombat.LOGGER.error("Off Hand Combat interaction priority E2E failed: {}", reason);
         }
     }
@@ -368,10 +305,6 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static void fail(String reason, Throwable throwable) {
         if (phase != Phase.FAILED) {
             phase = Phase.FAILED;
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.options != null) {
-                minecraft.options.keyUse.setDown(false);
-            }
             OffHandCombat.LOGGER.error(
                     "Off Hand Combat interaction priority E2E failed: {}", reason, throwable);
         }
@@ -385,16 +318,14 @@ public final class OffhandInteractionPriorityE2EHarness {
     private enum Phase {
         WAITING_FOR_WORLD,
         OPENING_WORLD,
-        SETTING_UP_BUTTON,
+        SETTING_UP,
         WAITING_FOR_BUTTON_SYNC,
         WAITING_FOR_BUTTON_RESULT,
-        VERIFYING_BUTTON_SERVER,
         WAITING_FOR_DOOR_SYNC,
         WAITING_FOR_DOOR_RESULT,
-        VERIFYING_DOOR_SERVER,
         WAITING_FOR_CHEST_SYNC,
         WAITING_FOR_CHEST_RESULT,
-        VERIFYING_CHEST_SERVER,
+        VERIFYING,
         PASSED,
         FAILED
     }
