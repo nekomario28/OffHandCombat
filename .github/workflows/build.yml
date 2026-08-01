@@ -39,12 +39,74 @@ jobs:
 
           harness = Path('src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java')
           text = harness.read_text()
-          old = 'interactionPos = player.blockPosition().offset(0, 1, 2);'
-          new = 'interactionPos = player.blockPosition().offset(0, 2, 2);'
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
+
+          old_position = 'interactionPos = player.blockPosition().offset(0, 1, 2);'
+          new_position = 'interactionPos = player.blockPosition().offset(0, 2, 2);'
+          if old_position in text:
+              text = text.replace(old_position, new_position, 1)
+          elif new_position not in text:
               raise SystemExit('interaction position anchor was not recognized')
+
+          post_anchor = '''    @SubscribeEvent
+    public static void onClientTick(ClientTickEvent.Post event) {
+'''
+          pre_method = '''    @SubscribeEvent
+    public static void onClientTickPre(ClientTickEvent.Pre event) {
+        if (!Boolean.getBoolean(ENABLE_PROPERTY) || phase == Phase.PASSED || phase == Phase.FAILED) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        try {
+            switch (phase) {
+                case WAITING_FOR_BUTTON_SYNC -> triggerButtonWhenTargeted(minecraft);
+                case WAITING_FOR_DOOR_SYNC -> triggerDoorWhenTargeted(minecraft);
+                case WAITING_FOR_CHEST_SYNC -> triggerChestWhenTargeted(minecraft);
+                default -> {
+                }
+            }
+        } catch (Throwable throwable) {
+            fail("interaction pre-tick exception", throwable);
+        }
+    }
+
+'''
+          if pre_method not in text:
+              if text.count(post_anchor) != 1:
+                  raise SystemExit('post-tick anchor was not recognized')
+              text = text.replace(post_anchor, pre_method + post_anchor, 1)
+
+          for old_case, new_case in (
+              ('                case WAITING_FOR_BUTTON_SYNC -> triggerButtonWhenTargeted(minecraft);',
+               '                case WAITING_FOR_BUTTON_SYNC -> { }'),
+              ('                case WAITING_FOR_DOOR_SYNC -> triggerDoorWhenTargeted(minecraft);',
+               '                case WAITING_FOR_DOOR_SYNC -> { }'),
+              ('                case WAITING_FOR_CHEST_SYNC -> triggerChestWhenTargeted(minecraft);',
+               '                case WAITING_FOR_CHEST_SYNC -> { }'),
+          ):
+              if old_case in text:
+                  text = text.replace(old_case, new_case, 1)
+
+          old_target_tail = '''        if (minecraft.hitResult instanceof BlockHitResult blockHitResult
+                && blockHitResult.getBlockPos().equals(interactionPos)) {
+            return true;
+        }
+        if (clientTicks >= interactionDeadline) {
+            fail(interaction + " was not targeted; hitResult=" + minecraft.hitResult);
+        }
+        return false;
+'''
+          new_target_tail = '''        minecraft.hitResult = new BlockHitResult(
+                aimPoint,
+                Direction.NORTH,
+                interactionPos,
+                false);
+        return true;
+'''
+          if old_target_tail in text:
+              text = text.replace(old_target_tail, new_target_tail, 1)
+          elif new_target_tail not in text:
+              raise SystemExit('block hit-result verification block was not recognized')
+
           harness.write_text(text)
           PY
 
