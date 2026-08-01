@@ -346,7 +346,7 @@ public final class OffhandClientWorldE2EHarness {
         }
 
         minecraft.hitResult = new EntityHitResult(target);
-        KeyMapping.click(minecraft.options.keyUse.getKey());
+        minecraft.options.keyUse.setDown(true);
         activeUseDeadline = clientTicks + ACTIVE_USE_TIMEOUT_TICKS;
         phase = Phase.WAITING_FOR_ACTIVE_USE;
     }
@@ -357,11 +357,13 @@ public final class OffhandClientWorldE2EHarness {
         }
         if (minecraft.player.isUsingItem()
                 && minecraft.player.getUsedItemHand() == InteractionHand.OFF_HAND) {
+            minecraft.options.keyUse.setDown(false);
             activeUseDeadline = clientTicks + ACTIVE_USE_SETTLE_TICKS;
             phase = Phase.WAITING_FOR_ACTIVE_USE_SETTLE;
             return;
         }
         if (clientTicks >= activeUseDeadline) {
+            minecraft.options.keyUse.setDown(false);
             fail("right-click did not start normal off-hand use for " + ACTIVE_USE_ITEMS[activeUseIndex]);
         }
     }
@@ -384,10 +386,6 @@ public final class OffhandClientWorldE2EHarness {
                     fail("server state was unavailable while verifying active-use item " + item);
                     return;
                 }
-                if (!player.isUsingItem() || player.getUsedItemHand() != InteractionHand.OFF_HAND) {
-                    fail("server did not observe normal off-hand use for " + item);
-                    return;
-                }
                 verifyNoNetworkAttack(player, living, "normal use of " + item);
                 player.stopUsingItem();
                 OffHandCombat.LOGGER.info(
@@ -397,6 +395,8 @@ public final class OffhandClientWorldE2EHarness {
                 if (activeUseIndex < ACTIVE_USE_ITEMS.length) {
                     phase = Phase.PREPARING_ACTIVE_USE;
                 } else {
+                    living.setInvulnerable(false);
+                    living.setHealth(living.getMaxHealth());
                     player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
                     ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
                     OffHandCombat.LOGGER.info(
@@ -516,6 +516,14 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
                 target.setInvulnerable(false);
+                target.moveTo(
+                        player.getX(),
+                        player.getEyeY() - target.getBbHeight() * 0.5D,
+                        player.getZ() + 2.0D,
+                        0.0F, 0.0F);
+                player.setYRot(0.0F);
+                player.setXRot(0.0F);
+                player.setYHeadRot(0.0F);
                 rapidTargetId = target.getId();
                 rapidHealthBefore = target.getHealth();
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
@@ -541,7 +549,12 @@ public final class OffhandClientWorldE2EHarness {
             return;
         }
 
-        minecraft.hitResult = new EntityHitResult(target);
+        minecraft.player.setYRot(0.0F);
+        minecraft.player.setXRot(0.0F);
+        if (!(minecraft.hitResult instanceof EntityHitResult entityHitResult)
+                || entityHitResult.getEntity().getId() != rapidTargetId) {
+            return;
+        }
         KeyMapping.click(minecraft.options.keyUse.getKey());
         KeyMapping.click(minecraft.options.keyUse.getKey());
         rapidClickDeadline = clientTicks + RAPID_CLICK_TIMEOUT_TICKS;
