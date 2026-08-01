@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build:
     runs-on: self-hosted
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,6 +63,10 @@ jobs:
           set -o pipefail
           gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
 
+      - name: Prepare smoke world and recheck physical input
+        shell: bash
+        run: bash .ci/client-world-e2e.sh 240
+
       - name: Block interaction priority E2E
         shell: bash
         run: |
@@ -107,6 +111,8 @@ jobs:
           name: offhandcombat-interaction-priority-${{ github.sha }}
           path: |
             build.log
+            client-world-prepare.log
+            client-world-e2e.log
             client-interaction-console.log
             client-interaction-e2e.log
             villager-api.log
