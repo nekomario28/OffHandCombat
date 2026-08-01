@@ -1,8 +1,6 @@
 name: Self-hosted release gate
 
 on:
-  push:
-    branches: [ ci/self-hosted-release-gate ]
   pull_request:
   workflow_dispatch:
 
@@ -11,7 +9,7 @@ permissions:
 
 concurrency:
   group: offhandcombat-self-hosted-release-gate
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   release-gate:
