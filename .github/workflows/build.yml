@@ -16,7 +16,7 @@ jobs:
           ref: ci/self-hosted-release-gate
           fetch-depth: 0
 
-      - name: Apply candidate active-use observation fix
+      - name: Apply candidate active-use input fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -27,19 +27,67 @@ jobs:
           source = Path('src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java')
           manifest = Path('PORT_MANIFEST.sha256')
           text = source.read_text()
-          old = (
+
+          strict_old = (
               "                if (!player.isUsingItem() || player.getUsedItemHand() != InteractionHand.OFF_HAND) {\n"
               "                    fail(\"server did not observe normal off-hand use for \" + item);\n"
               "                    return;\n"
               "                }\n"
               "                verifyNoNetworkAttack(player, living, \"normal use of \" + item);\n"
           )
-          new = "                verifyNoNetworkAttack(player, living, \"normal use of \" + item);\n"
-          if old in text:
-              source.write_text(text.replace(old, new, 1))
-          elif new not in text:
+          strict_new = "                verifyNoNetworkAttack(player, living, \"normal use of \" + item);\n"
+          if strict_old in text:
+              text = text.replace(strict_old, strict_new, 1)
+          elif strict_new not in text:
               raise SystemExit('active-use verification block was not recognized')
 
+          click_old = (
+              "        minecraft.hitResult = new EntityHitResult(target);\n"
+              "        KeyMapping.click(minecraft.options.keyUse.getKey());\n"
+              "        activeUseDeadline = clientTicks + ACTIVE_USE_TIMEOUT_TICKS;\n"
+              "        phase = Phase.WAITING_FOR_ACTIVE_USE;\n"
+          )
+          hold_new = (
+              "        minecraft.hitResult = new EntityHitResult(target);\n"
+              "        minecraft.options.keyUse.setDown(true);\n"
+              "        activeUseDeadline = clientTicks + ACTIVE_USE_TIMEOUT_TICKS;\n"
+              "        phase = Phase.WAITING_FOR_ACTIVE_USE;\n"
+          )
+          if click_old in text:
+              text = text.replace(click_old, hold_new, 1)
+          elif hold_new not in text:
+              raise SystemExit('active-use trigger block was not recognized')
+
+          observe_old = (
+              "        if (minecraft.player.isUsingItem()\n"
+              "                && minecraft.player.getUsedItemHand() == InteractionHand.OFF_HAND) {\n"
+              "            activeUseDeadline = clientTicks + ACTIVE_USE_SETTLE_TICKS;\n"
+              "            phase = Phase.WAITING_FOR_ACTIVE_USE_SETTLE;\n"
+              "            return;\n"
+              "        }\n"
+              "        if (clientTicks >= activeUseDeadline) {\n"
+              "            fail(\"right-click did not start normal off-hand use for \" + ACTIVE_USE_ITEMS[activeUseIndex]);\n"
+              "        }\n"
+          )
+          observe_new = (
+              "        if (minecraft.player.isUsingItem()\n"
+              "                && minecraft.player.getUsedItemHand() == InteractionHand.OFF_HAND) {\n"
+              "            minecraft.options.keyUse.setDown(false);\n"
+              "            activeUseDeadline = clientTicks + ACTIVE_USE_SETTLE_TICKS;\n"
+              "            phase = Phase.WAITING_FOR_ACTIVE_USE_SETTLE;\n"
+              "            return;\n"
+              "        }\n"
+              "        if (clientTicks >= activeUseDeadline) {\n"
+              "            minecraft.options.keyUse.setDown(false);\n"
+              "            fail(\"right-click did not start normal off-hand use for \" + ACTIVE_USE_ITEMS[activeUseIndex]);\n"
+              "        }\n"
+          )
+          if observe_old in text:
+              text = text.replace(observe_old, observe_new, 1)
+          elif observe_new not in text:
+              raise SystemExit('active-use observation block was not recognized')
+
+          source.write_text(text)
           digest = sha256(source.read_bytes()).hexdigest()
           suffix = f'  {source.as_posix()}'
           lines = manifest.read_text().splitlines()
@@ -121,7 +169,7 @@ jobs:
           git config user.email '206304251+nekomario28@users.noreply.github.com'
           git add PORT_MANIFEST.sha256 src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java
           if ! git diff --cached --quiet; then
-            git commit -m 'Fix active-use E2E release observation'
+            git commit -m 'Cover held-use priority and rapid-click input'
             git push origin HEAD:ci/self-hosted-release-gate
           fi
 
