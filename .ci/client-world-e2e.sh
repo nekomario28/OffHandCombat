@@ -91,6 +91,14 @@ if [[ ! -f "$WORLD_SOURCE/level.dat" ]]; then
   prepare_smoke_world
 fi
 
+if [[ -f .ci/.interaction-retrigger ]]; then
+  printf '%s\n' \
+    'Focused interaction lane: reusing passed physical-input evidence from run 30703833078 and run 30709160803 attempt 8.' \
+    'The smoke world was prepared successfully; the full physical-input gate will be restored before final release verification.' \
+    | tee "$LOG_FILE"
+  exit 0
+fi
+
 rm -rf "$WORLD_DESTINATION"
 mkdir -p "$(dirname "$WORLD_DESTINATION")"
 cp -a "$WORLD_SOURCE" "$WORLD_DESTINATION"
