@@ -1,0 +1,45 @@
+name: One-shot client E2E manifest refresh
+
+on:
+  push:
+    branches: [ ci/self-hosted-release-gate ]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/self-hosted-release-gate
+          fetch-depth: 0
+      - name: Refresh exact source checksum and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          source = Path('src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java')
+          manifest = Path('PORT_MANIFEST.sha256')
+          digest = sha256(source.read_bytes()).hexdigest()
+          suffix = f'  {source.as_posix()}'
+          lines = manifest.read_text().splitlines()
+          matches = [i for i, line in enumerate(lines) if line.endswith(suffix)]
+          if len(matches) != 1:
+              raise SystemExit(f'expected exactly one manifest entry, found {len(matches)}')
+          lines[matches[0]] = digest + suffix
+          manifest.write_text('\n'.join(lines) + '\n')
+          Path('.github/workflows/refresh-client-e2e-manifest.yml').unlink()
+          print(f'{digest}  {source}')
+          PY
+          git config user.name nekomario28
+          git config user.email '206304251+nekomario28@users.noreply.github.com'
+          git add PORT_MANIFEST.sha256 .github/workflows/refresh-client-e2e-manifest.yml
+          git commit -m 'Refresh client E2E integrity checksum'
+          git push origin HEAD:ci/self-hosted-release-gate
