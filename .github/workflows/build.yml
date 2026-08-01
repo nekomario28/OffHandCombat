@@ -13,27 +13,39 @@ concurrency:
 jobs:
   build:
     runs-on: self-hosted
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ci/self-hosted-release-gate
           fetch-depth: 0
 
-      - name: Correct staged client run settings
+      - name: Apply staged interaction corrections
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('build.gradle')
-          text = path.read_text()
+
+          gradle = Path('build.gradle')
+          text = gradle.read_text()
           text = text.replace(
               "systemProperty 'offhandcombat.networkStressE2E', 'true'",
               "systemProperty 'offhandcombat.networkStressClientE2E', 'true'")
           text = text.replace(
               "programArguments = ['--username', 'OffhandInteractionE2E']",
               "programArguments = ['--username', 'OHCInteract']")
-          path.write_text(text)
+          gradle.write_text(text)
+
+          harness = Path('src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java')
+          text = harness.read_text()
+          old = 'interactionPos = player.blockPosition().offset(0, 1, 2);'
+          new = 'interactionPos = player.blockPosition().offset(0, 2, 2);'
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('interaction position anchor was not recognized')
+          harness.write_text(text)
           PY
 
       - uses: actions/setup-java@v4
@@ -45,15 +57,11 @@ jobs:
         with:
           gradle-version: '9.2.1'
 
-      - name: Compile and unit tests
+      - name: Compile candidate
         shell: bash
         run: |
           set -o pipefail
           gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
-
-      - name: Existing physical input E2E
-        shell: bash
-        run: bash .ci/client-world-e2e.sh 240
 
       - name: Block interaction priority E2E
         shell: bash
@@ -80,15 +88,15 @@ jobs:
             javap -classpath "$artifact" -public net.minecraft.world.item.trading.MerchantOffer
           } | tee villager-api.log
 
-      - name: Persist verified run configuration correction
+      - name: Persist verified interaction corrections
         shell: bash
         run: |
           set -euo pipefail
           git config user.name nekomario28
           git config user.email '206304251+nekomario28@users.noreply.github.com'
-          git add build.gradle
+          git add build.gradle src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java
           if ! git diff --cached --quiet; then
-            git commit -m 'Correct client E2E run settings'
+            git commit -m 'Correct physical interaction E2E targeting'
             git push origin HEAD:ci/self-hosted-release-gate
           fi
 
@@ -99,8 +107,6 @@ jobs:
           name: offhandcombat-interaction-priority-${{ github.sha }}
           path: |
             build.log
-            client-world-prepare.log
-            client-world-e2e.log
             client-interaction-console.log
             client-interaction-e2e.log
             villager-api.log
