@@ -13,6 +13,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.AttachFace;
@@ -29,11 +30,13 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 public final class OffhandInteractionPriorityE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.interactionPriorityE2E";
     private static final String WORLD_NAME = "InteractionWorld";
-    private static final int TIMEOUT_CLIENT_TICKS = 3000;
+    private static final int TIMEOUT_CLIENT_TICKS = 1200;
+    private static final int TARGET_SYNC_TIMEOUT_TICKS = 200;
     private static final int INTERACTION_TIMEOUT_TICKS = 80;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile BlockPos interactionPos;
+    private static volatile Vec3 aimPoint;
     private static volatile long baselineSequence;
     private static int clientTicks;
     private static int interactionDeadline;
@@ -111,9 +114,6 @@ public final class OffhandInteractionPriorityE2EHarness {
                 player.setGameMode(GameType.SURVIVAL);
                 player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
-                player.setYRot(0.0F);
-                player.setXRot(0.0F);
-                player.setYHeadRot(0.0F);
                 baselineSequence = player
                         .getData(OffhandCombatAttachments.COMBAT_STATE)
                         .lastNetworkSequence();
@@ -128,17 +128,21 @@ public final class OffhandInteractionPriorityE2EHarness {
 
     private static void setupButton(ServerPlayer player) {
         clearInteractionArea(player);
-        player.serverLevel().setBlockAndUpdate(interactionPos.below(), Blocks.STONE.defaultBlockState());
+        player.serverLevel().setBlockAndUpdate(
+                interactionPos.relative(Direction.SOUTH),
+                Blocks.STONE.defaultBlockState());
         BlockState button = Blocks.STONE_BUTTON.defaultBlockState()
-                .setValue(BlockStateProperties.ATTACH_FACE, AttachFace.FLOOR)
+                .setValue(BlockStateProperties.ATTACH_FACE, AttachFace.WALL)
                 .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
                 .setValue(BlockStateProperties.POWERED, false);
         player.serverLevel().setBlockAndUpdate(interactionPos, button);
+        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.43D);
         orientServerPlayer(player);
+        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
     }
 
     private static void triggerButtonWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.STONE_BUTTON)) {
+        if (!targetInteractionBlock(minecraft, Blocks.STONE_BUTTON, "button")) {
             return;
         }
         KeyMapping.click(minecraft.options.keyUse.getKey());
@@ -172,11 +176,14 @@ public final class OffhandInteractionPriorityE2EHarness {
         player.serverLevel().setBlockAndUpdate(
                 interactionPos.above(),
                 lower.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER));
+        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.35D);
         orientServerPlayer(player);
+        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
+        phase = Phase.WAITING_FOR_DOOR_SYNC;
     }
 
     private static void triggerDoorWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.OAK_DOOR)) {
+        if (!targetInteractionBlock(minecraft, Blocks.OAK_DOOR, "door")) {
             return;
         }
         KeyMapping.click(minecraft.options.keyUse.getKey());
@@ -201,11 +208,14 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static void setupChest(ServerPlayer player) {
         clearInteractionArea(player);
         player.serverLevel().setBlockAndUpdate(interactionPos, Blocks.CHEST.defaultBlockState());
+        aimPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.1D, -0.35D);
         orientServerPlayer(player);
+        interactionDeadline = clientTicks + TARGET_SYNC_TIMEOUT_TICKS;
+        phase = Phase.WAITING_FOR_CHEST_SYNC;
     }
 
     private static void triggerChestWhenTargeted(Minecraft minecraft) {
-        if (!targetInteractionBlock(minecraft, Blocks.CHEST)) {
+        if (!targetInteractionBlock(minecraft, Blocks.CHEST, "chest")) {
             return;
         }
         KeyMapping.click(minecraft.options.keyUse.getKey());
@@ -230,16 +240,26 @@ public final class OffhandInteractionPriorityE2EHarness {
         }
     }
 
-    private static boolean targetInteractionBlock(Minecraft minecraft, net.minecraft.world.level.block.Block block) {
-        if (minecraft.level == null || minecraft.player == null || interactionPos == null || minecraft.screen != null) {
+    private static boolean targetInteractionBlock(Minecraft minecraft, Block block, String interaction) {
+        if (minecraft.level == null || minecraft.player == null || interactionPos == null
+                || aimPoint == null || minecraft.screen != null) {
             return false;
         }
         orientClientPlayer(minecraft);
         if (!minecraft.level.getBlockState(interactionPos).is(block)) {
+            if (clientTicks >= interactionDeadline) {
+                fail(interaction + " block did not synchronize to the client");
+            }
             return false;
         }
-        return minecraft.hitResult instanceof BlockHitResult blockHitResult
-                && blockHitResult.getBlockPos().equals(interactionPos);
+        if (minecraft.hitResult instanceof BlockHitResult blockHitResult
+                && blockHitResult.getBlockPos().equals(interactionPos)) {
+            return true;
+        }
+        if (clientTicks >= interactionDeadline) {
+            fail(interaction + " was not targeted; hitResult=" + minecraft.hitResult);
+        }
+        return false;
     }
 
     private static void verifyServerStateAndAdvance(
@@ -283,18 +303,23 @@ public final class OffhandInteractionPriorityE2EHarness {
         player.serverLevel().setBlockAndUpdate(interactionPos, Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.above(), Blocks.AIR.defaultBlockState());
         player.serverLevel().setBlockAndUpdate(interactionPos.below(), Blocks.AIR.defaultBlockState());
+        player.serverLevel().setBlockAndUpdate(
+                interactionPos.relative(Direction.SOUTH), Blocks.AIR.defaultBlockState());
     }
 
     private static void orientServerPlayer(ServerPlayer player) {
-        Vec3 center = Vec3.atCenterOf(interactionPos);
-        applyLookRotation(player, center);
+        applyLookRotation(player, aimPoint);
+        player.setYHeadRot(player.getYRot());
+        player.setYBodyRot(player.getYRot());
     }
 
     private static void orientClientPlayer(Minecraft minecraft) {
-        if (minecraft.player == null || interactionPos == null) {
+        if (minecraft.player == null || aimPoint == null) {
             return;
         }
-        applyLookRotation(minecraft.player, Vec3.atCenterOf(interactionPos));
+        applyLookRotation(minecraft.player, aimPoint);
+        minecraft.player.setYHeadRot(minecraft.player.getYRot());
+        minecraft.player.setYBodyRot(minecraft.player.getYRot());
     }
 
     private static void applyLookRotation(net.minecraft.world.entity.Entity player, Vec3 target) {
