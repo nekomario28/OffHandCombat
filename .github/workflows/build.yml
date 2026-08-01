@@ -87,6 +87,23 @@ jobs:
           elif observe_new not in text:
               raise SystemExit('active-use observation block was not recognized')
 
+          arm_old = (
+              "                } else {\n"
+              "                    player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));\n"
+              "                    ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);\n"
+          )
+          arm_new = (
+              "                } else {\n"
+              "                    living.setInvulnerable(false);\n"
+              "                    living.setHealth(living.getMaxHealth());\n"
+              "                    player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));\n"
+              "                    ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);\n"
+          )
+          if arm_old in text:
+              text = text.replace(arm_old, arm_new, 1)
+          elif arm_new not in text:
+              raise SystemExit('attack arming block was not recognized')
+
           source.write_text(text)
           digest = sha256(source.read_bytes()).hexdigest()
           suffix = f'  {source.as_posix()}'
@@ -163,7 +180,7 @@ jobs:
           set +e
           bash .ci/client-world-e2e.sh 240 > client-world-console.log 2>&1
           status=$?
-          grep -E 'right-click priority E2E|active-use priority E2E|physical rapid-click E2E|client world E2E (passed|failed)' client-world-console.log || true
+          grep -E 'right-click priority E2E|active-use priority E2E|physical rapid-click E2E|client attack and replay E2E|client world E2E (passed|failed)' client-world-console.log || true
           if [[ "$status" -ne 0 ]]; then
             echo '--- focused client E2E tail ---'
             tail -n 120 client-world-console.log
