@@ -159,7 +159,16 @@ jobs:
 
       - name: Integrated use-priority and rapid-click E2E
         shell: bash
-        run: bash .ci/client-world-e2e.sh 240
+        run: |
+          set +e
+          bash .ci/client-world-e2e.sh 240 > client-world-console.log 2>&1
+          status=$?
+          grep -E 'right-click priority E2E|active-use priority E2E|physical rapid-click E2E|client world E2E (passed|failed)' client-world-console.log || true
+          if [[ "$status" -ne 0 ]]; then
+            echo '--- focused client E2E tail ---'
+            tail -n 120 client-world-console.log
+          fi
+          exit "$status"
 
       - name: Persist verified harness correction
         shell: bash
@@ -183,6 +192,7 @@ jobs:
             server-smoke.log
             gametest.log
             client-smoke.log
+            client-world-console.log
             client-world-e2e.log
             run/**/logs/latest.log
             build/libs/*.jar
