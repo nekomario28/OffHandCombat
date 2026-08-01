@@ -1,13 +1,106 @@
 name: Build and audit
 
 on:
-  workflow_dispatch:
+  pull_request:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: offhandcombat-interaction-priority
+  cancel-in-progress: true
 
 jobs:
-  paused:
+  build:
     runs-on: self-hosted
+    timeout-minutes: 35
     steps:
-      - run: echo 'Interaction-priority E2E staging in progress.'
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/self-hosted-release-gate
+          fetch-depth: 0
+
+      - name: Correct staged network-stress property name
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('build.gradle')
+          text = path.read_text()
+          text = text.replace(
+              "systemProperty 'offhandcombat.networkStressE2E', 'true'",
+              "systemProperty 'offhandcombat.networkStressClientE2E', 'true'")
+          path.write_text(text)
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+
+      - name: Compile and unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+
+      - name: Existing physical input E2E
+        shell: bash
+        run: bash .ci/client-world-e2e.sh 240
+
+      - name: Block interaction priority E2E
+        shell: bash
+        run: |
+          set +e
+          bash .ci/client-interaction-e2e.sh 240 > client-interaction-console.log 2>&1
+          status=$?
+          grep -E 'interaction priority E2E (passed|failed)' client-interaction-console.log || true
+          if [[ "$status" -ne 0 ]]; then
+            echo '--- interaction E2E tail ---'
+            tail -n 140 client-interaction-console.log
+          fi
+          exit "$status"
+
+      - name: Inspect villager trading API
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$(find build/moddev/artifacts -type f -name 'neoforge-*.jar' -print -quit)"
+          test -n "$artifact"
+          {
+            javap -classpath "$artifact" -public net.minecraft.world.entity.npc.Villager
+            javap -classpath "$artifact" -public net.minecraft.world.entity.npc.VillagerData
+            javap -classpath "$artifact" -public net.minecraft.world.item.trading.MerchantOffer
+          } | tee villager-api.log
+
+      - name: Persist verified run configuration correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name nekomario28
+          git config user.email '206304251+nekomario28@users.noreply.github.com'
+          git add build.gradle
+          if ! git diff --cached --quiet; then
+            git commit -m 'Correct network stress client run property'
+            git push origin HEAD:ci/self-hosted-release-gate
+          fi
+
+      - name: Upload interaction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offhandcombat-interaction-priority-${{ github.sha }}
+          path: |
+            build.log
+            client-world-prepare.log
+            client-world-e2e.log
+            client-interaction-console.log
+            client-interaction-e2e.log
+            villager-api.log
+            run/**/logs/latest.log
+            build/libs/*.jar
+          if-no-files-found: warn
