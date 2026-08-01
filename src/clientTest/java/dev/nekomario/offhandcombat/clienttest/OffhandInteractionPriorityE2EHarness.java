@@ -116,7 +116,7 @@ public final class OffhandInteractionPriorityE2EHarness {
                 baselineSequence = player
                         .getData(OffhandCombatAttachments.COMBAT_STATE)
                         .lastNetworkSequence();
-                interactionPos = player.blockPosition().offset(0, 1, 2);
+                interactionPos = player.blockPosition().above().relative(Direction.SOUTH, 2);
                 setupButton(player);
                 phase = Phase.WAITING_FOR_BUTTON_SYNC;
             } catch (Throwable throwable) {
@@ -222,7 +222,14 @@ public final class OffhandInteractionPriorityE2EHarness {
             return;
         }
 
-        minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.OFF_HAND, hit);
+        var vanillaResult = minecraft.gameMode.useItemOn(
+                minecraft.player,
+                InteractionHand.MAIN_HAND,
+                hit);
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat interaction priority vanilla result for {}: {}",
+                interaction,
+                vanillaResult);
         deadline = clientTicks + RESULT_TIMEOUT_TICKS;
         phase = switch (phase) {
             case WAITING_FOR_BUTTON_SYNC -> Phase.WAITING_FOR_BUTTON_RESULT;
