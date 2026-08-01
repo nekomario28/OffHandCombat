@@ -20,7 +20,7 @@ jobs:
           ref: ci/self-hosted-release-gate
           fetch-depth: 0
 
-      - name: Correct staged network-stress property name
+      - name: Correct staged client run settings
         shell: bash
         run: |
           python3 - <<'PY'
@@ -30,6 +30,9 @@ jobs:
           text = text.replace(
               "systemProperty 'offhandcombat.networkStressE2E', 'true'",
               "systemProperty 'offhandcombat.networkStressClientE2E', 'true'")
+          text = text.replace(
+              "programArguments = ['--username', 'OffhandInteractionE2E']",
+              "programArguments = ['--username', 'OHCInteract']")
           path.write_text(text)
           PY
 
@@ -85,7 +88,7 @@ jobs:
           git config user.email '206304251+nekomario28@users.noreply.github.com'
           git add build.gradle
           if ! git diff --cached --quiet; then
-            git commit -m 'Correct network stress client run property'
+            git commit -m 'Correct client E2E run settings'
             git push origin HEAD:ci/self-hosted-release-gate
           fi
 
