@@ -20,25 +20,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Runner preflight
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Runner preflight and CachyOS dependencies
         shell: bash
         run: |
           set -euo pipefail
           uname -a
           id
           printf 'PATH=%s\n' "$PATH"
-          for command in bash python3 setsid timeout xvfb-run tc jar unzip sha256sum; do
+
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            if command -v pacman >/dev/null 2>&1 && sudo -n true; then
+              sudo -n pacman -S --needed --noconfirm xorg-server-xvfb
+            else
+              echo 'xvfb-run is missing and non-interactive package installation is unavailable.' >&2
+              echo 'Install it with: sudo pacman -S --needed xorg-server-xvfb' >&2
+              exit 1
+            fi
+          fi
+
+          for command in bash python3 setsid timeout xvfb-run tc java jar unzip sha256sum; do
             if ! command -v "$command" >/dev/null 2>&1; then
               echo "Missing required command: $command" >&2
               exit 1
             fi
             command -v "$command"
           done
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
+          java -version
+          xvfb-run --help >/dev/null
 
       - uses: gradle/actions/setup-gradle@v4
         with:
