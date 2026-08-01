@@ -60,6 +60,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 validate_port.py 2>&1 | tee static-audit.log
+          sha256sum src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java \
+            | tee -a static-audit.log
           sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
 
       - name: Unit tests and build
