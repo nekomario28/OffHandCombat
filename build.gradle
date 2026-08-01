@@ -64,6 +64,13 @@ neoForge {
             programArguments = ['--username', 'OHCInteract']
             systemProperty 'offhandcombat.interactionPriorityE2E', 'true'
         }
+        clientVillagerE2E {
+            client()
+            gameDirectory = project.file('run')
+            sourceSet = sourceSets.clientTest
+            programArguments = ['--username', 'OHCVillager']
+            systemProperty 'offhandcombat.villagerPriorityE2E', 'true'
+        }
         vanillaServerClientE2E {
             client()
             gameDirectory = project.file('run/vanilla-peer-client')
