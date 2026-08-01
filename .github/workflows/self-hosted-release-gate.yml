@@ -3,6 +3,7 @@ name: Self-hosted release gate
 on:
   push:
     branches: [ ci/self-hosted-release-gate ]
+  pull_request:
   workflow_dispatch:
 
 permissions:
