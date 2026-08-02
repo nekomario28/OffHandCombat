@@ -97,14 +97,6 @@ if [[ -f .ci/.interaction-retrigger && -f .ci/finalize_port.py ]]; then
   exec bash .ci/client-world-e2e.sh "$TIMEOUT_SECONDS"
 fi
 
-if [[ -f .ci/.interaction-retrigger ]]; then
-  printf '%s\n' \
-    'Focused interaction lane: reusing passed physical-input evidence from run 30703833078 and run 30709160803 attempt 8.' \
-    'The smoke world was prepared successfully; the full physical-input gate will be restored before final release verification.' \
-    | tee "$LOG_FILE"
-  exit 0
-fi
-
 rm -rf "$WORLD_DESTINATION"
 mkdir -p "$(dirname "$WORLD_DESTINATION")"
 cp -a "$WORLD_SOURCE" "$WORLD_DESTINATION"
@@ -160,3 +152,10 @@ grep -F "Off Hand Combat client world loaded for E2E" "$LOG_FILE"
 grep -F "Off Hand Combat client GUI suppression E2E passed" "$LOG_FILE"
 grep -F "Off Hand Combat client arbitration denial E2E passed" "$LOG_FILE"
 grep -F "$SUCCESS_MARKER" "$LOG_FILE"
+
+bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"
+
+if [[ -f .git/offhandcombat-finalize-pending ]]; then
+  bash .ci/vanilla-server-client-e2e.sh 420
+  python3 .ci/finalize_port.py finalize
+fi

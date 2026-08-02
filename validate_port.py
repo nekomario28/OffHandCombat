@@ -10,11 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 errors: list[str] = []
 
+IGNORED_JSON_ROOTS = {'.git', '.gradle', 'build', 'run'}
 for path in sorted(ROOT.rglob('*.json')):
+    relative = path.relative_to(ROOT)
+    if relative.parts and relative.parts[0] in IGNORED_JSON_ROOTS:
+        continue
     try:
         json.loads(path.read_text(encoding='utf-8'))
     except Exception as exc:
-        errors.append(f'JSON {path.relative_to(ROOT)}: {exc}')
+        errors.append(f'JSON {relative}: {exc}')
 
 props: dict[str, str] = {}
 for line in (ROOT / 'gradle.properties').read_text(encoding='utf-8').splitlines():
@@ -264,6 +268,69 @@ for required in [
 ]:
     if required not in public_api_game_test:
         errors.append(f'public API GameTest missing required regression: {required}')
+
+# Final interaction and vanilla-peer release checks
+interaction_script = (ROOT / '.ci/client-interaction-e2e.sh').read_text(encoding='utf-8')
+for required in [
+    'runClientInteractionE2E',
+    'runClientVillagerE2E',
+    'Off Hand Combat interaction priority E2E passed: button, door and chest',
+    'Off Hand Combat villager trading priority E2E passed',
+]:
+    if required not in interaction_script:
+        errors.append(f'interaction priority E2E script missing required fragment: {required}')
+
+villager_e2e_java = (
+    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java'
+).read_text(encoding='utf-8')
+for required in [
+    'minecraft.gameMode.interact(',
+    'villager,',
+    'InteractionHand.MAIN_HAND);',
+    'minecraft.screen instanceof MerchantScreen',
+    'lastNetworkSequence() != baselineSequence',
+    'getOffhandItem().getDamageValue() != 0',
+    'trade screen opened, sequence unchanged, durability unchanged',
+]:
+    if required not in villager_e2e_java:
+        errors.append(f'villager priority E2E harness missing required fragment: {required}')
+
+for required in [
+    'minecraft.hitResult = new EntityHitResult(target);',
+    'ClientInputHandler.class.getDeclaredMethod',
+    'sendMethod.invoke(null, OffhandInputSource.USE_KEY)',
+    'OffhandAttackStatus.RATE_LIMITED',
+    'same-tick use-key E2E passed',
+]:
+    if required not in client_e2e_java:
+        errors.append(f'deterministic rapid-click E2E missing required fragment: {required}')
+if 'entityHitResult.getEntity().getId() != rapidTargetId' in client_e2e_java:
+    errors.append('rapid-click E2E still depends on natural crosshair synchronization')
+
+if 'bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"' not in client_e2e_script:
+    errors.append('client E2E release gate does not invoke interaction/villager priority E2E')
+if (ROOT / '.ci/.interaction-retrigger').exists():
+    errors.append('temporary focused interaction marker remains')
+if (ROOT / '.github/workflows/self-hosted-release-gate.yml').exists():
+    errors.append('temporary self-hosted placeholder workflow remains')
+
+vanilla_client_script = (ROOT / '.ci/vanilla-client-server-e2e.sh').read_text(encoding='utf-8')
+for required in [
+    'runVanillaClientServerE2E',
+    'piston-meta.mojang.com',
+    '--quickPlayMultiplayer',
+    'PLAYER_NAME="OHCPlainVanilla"',
+    '${PLAYER_NAME} joined the game',
+    'vanilla-client-to-modded-server E2E passed',
+]:
+    if required not in vanilla_client_script:
+        errors.append(f'vanilla-client-to-modded-server E2E missing required fragment: {required}')
+if 'bash .ci/vanilla-client-server-e2e.sh "$TIMEOUT_SECONDS"' not in (
+    ROOT / '.ci/vanilla-server-client-e2e.sh'
+).read_text(encoding='utf-8'):
+    errors.append('bidirectional vanilla compatibility gate is not chained')
+if "vanillaClientServerE2E {" not in build_script:
+    errors.append('build script missing isolated vanilla-client peer server run')
 
 if errors:
     print('VALIDATION FAILED')

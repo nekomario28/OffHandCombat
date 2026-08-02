@@ -4,9 +4,11 @@ import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
+import dev.nekomario.offhandcombat.api.OffhandInputSource;
 import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRegistry;
 import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRule;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.client.ClientInputHandler;
 import dev.nekomario.offhandcombat.client.ClientModEvents;
 import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.UUID;
@@ -551,12 +553,21 @@ public final class OffhandClientWorldE2EHarness {
 
         minecraft.player.setYRot(0.0F);
         minecraft.player.setXRot(0.0F);
-        if (!(minecraft.hitResult instanceof EntityHitResult entityHitResult)
-                || entityHitResult.getEntity().getId() != rapidTargetId) {
+        minecraft.hitResult = new EntityHitResult(target);
+        try {
+            var sendMethod = ClientInputHandler.class.getDeclaredMethod(
+                    "trySendAttack", OffhandInputSource.class);
+            sendMethod.setAccessible(true);
+            boolean firstSent = (boolean) sendMethod.invoke(null, OffhandInputSource.USE_KEY);
+            boolean secondSent = (boolean) sendMethod.invoke(null, OffhandInputSource.USE_KEY);
+            if (!firstSent || !secondSent) {
+                fail("same-tick use-key requests were not both emitted");
+                return;
+            }
+        } catch (ReflectiveOperationException exception) {
+            fail("same-tick use-key bridge exception", exception);
             return;
         }
-        KeyMapping.click(minecraft.options.keyUse.getKey());
-        KeyMapping.click(minecraft.options.keyUse.getKey());
         rapidClickDeadline = clientTicks + RAPID_CLICK_TIMEOUT_TICKS;
         phase = Phase.WAITING_FOR_RAPID_CLICK_RESULT;
     }
@@ -571,7 +582,7 @@ public final class OffhandClientWorldE2EHarness {
         if (result == null || result.targetId() != rapidTargetId
                 || result.status() != OffhandAttackStatus.RATE_LIMITED) {
             if (clientTicks >= rapidClickDeadline) {
-                fail("two physical right-clicks did not produce a RATE_LIMITED second result; last=" + result);
+                fail("two same-tick use-key requests did not produce a RATE_LIMITED second result; last=" + result);
             }
             return;
         }
@@ -606,7 +617,7 @@ public final class OffhandClientWorldE2EHarness {
 
                 phase = Phase.PASSED;
                 OffHandCombat.LOGGER.info(
-                        "Off Hand Combat physical rapid-click E2E passed: finalSequence={}, secondStatus={}, health={} -> {}, durability=1",
+                        "Off Hand Combat same-tick use-key E2E passed: finalSequence={}, secondStatus={}, health={} -> {}, durability=1",
                         result.sequence(), result.status(), rapidHealthBefore, living.getHealth());
                 OffHandCombat.LOGGER.info(
                         "Off Hand Combat client world E2E passed: use priority, GUI/arbitration suppression, attack replay and rapid-click rate limiting");

@@ -85,6 +85,11 @@ spawn-protection=0
 EOF
 : > "$SERVER_CONSOLE_LOG"
 : > "$CLIENT_LOG"
+cat > "$CLIENT_DIR/options.txt" <<'EOF'
+onboardAccessibility:false
+skipMultiplayerWarning:true
+narrator:0
+EOF
 
 setsid stdbuf -oL -eL gradle --no-daemon runVanillaClientServerE2E --stacktrace \
   > "$SERVER_CONSOLE_LOG" 2>&1 &
@@ -264,6 +269,7 @@ setsid stdbuf -oL -eL xvfb-run -a -s "-screen 0 1280x720x24" \
   --userType legacy \
   --versionType release \
   --userProperties '{}' \
+  --quickPlayPath "quickplay/log.json" \
   --quickPlayMultiplayer "127.0.0.1:${PORT}" \
   > "$CLIENT_LOG" 2>&1 &
 CLIENT_PID=$!

@@ -71,6 +71,13 @@ neoForge {
             programArguments = ['--username', 'OHCVillager']
             systemProperty 'offhandcombat.villagerPriorityE2E', 'true'
         }
+        vanillaClientServerE2E {
+            server()
+            gameDirectory = project.file('run/vanilla-client-peer-server')
+            programArgument '--nogui'
+            jvmArgument '-Xms256m'
+            jvmArgument '-Xmx1024m'
+        }
         vanillaServerClientE2E {
             client()
             gameDirectory = project.file('run/vanilla-peer-client')

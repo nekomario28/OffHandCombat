@@ -162,3 +162,4 @@ grep -F 'request channel absent' vanilla-peer-client-latest.log
 grep -F 'vanilla use input remained uncanceled' vanilla-peer-client-latest.log
 grep -F 'dedicated key remained idle without a negotiated channel' vanilla-peer-client-latest.log
 grep -F "$CLIENT_MARKER" vanilla-peer-client-latest.log
+bash .ci/vanilla-client-server-e2e.sh "$TIMEOUT_SECONDS"
