@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -114,3 +115,5 @@ harness = harness.replace(
     "Off Hand Combat same-tick use-key E2E passed",
 )
 HARNESS.write_text(harness, encoding="utf-8")
+
+runpy.run_path(str(ROOT / ".ci/finalize_port_v3.py"), run_name="__main__")
