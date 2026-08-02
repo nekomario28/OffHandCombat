@@ -92,6 +92,7 @@ if [[ ! -f "$WORLD_SOURCE/level.dat" ]]; then
 fi
 
 if [[ -f .ci/.interaction-retrigger && -f .ci/finalize_port.py ]]; then
+  python3 .ci/finalize_port_v2.py
   python3 .ci/finalize_port.py prepare
   exec bash .ci/client-world-e2e.sh "$TIMEOUT_SECONDS"
 fi
