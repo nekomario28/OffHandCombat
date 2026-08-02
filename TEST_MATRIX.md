@@ -16,7 +16,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** One physical Xvfb client completes an actual disconnect/reconnect, death/respawn and Overworld-to-Nether transition against a separate Dedicated Server while replay and durability state follow the lifecycle contract.
 - [x] **G** A physical Xvfb client and separate Dedicated Server complete invalid-sequence, duplicate-flood, reordered-sequence and unique-sequence burst trials over loopback with `netem` delay `120ms ± 20ms`; execution remains exactly once and recovers after the burst.
 - [x] **G** The default `USE_KEY_ALWAYS` mode performs one right-click off-hand attack against a targeted entity.
-- [ ] **M** Shield, bow/crossbow, food/potion, block interaction and villager trading retain priority under physical right-click input.
+- [x] **G** Shield, bow, food, potion, button, door, chest and villager trading retain priority under physical right-click/vanilla interaction input; no custom sequence or off-hand durability is consumed.
 - [ ] **M** Vanilla hurt immunity remains unchanged under alternating rapid physical input.
 
 ## Protocol and lifecycle
@@ -29,7 +29,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** Integrated and both separate-process clients receive their own cached result after duplicate replay while authoritative health/durability remain unchanged.
 - [x] **G** A fresh sequence in one rate-limit window is rejected without execution.
 - [x] **G** A NeoForge client with Off Hand Combat connects through vanilla `ConnectScreen` to the Mojang vanilla 1.21.1 server; the request channel remains absent, the vanilla OFF_HAND use pass is not canceled, right-click creates no custom sequence or result, and the connection remains stable.
-- [ ] **M** Server-only installation accepts vanilla clients and remains idle.
+- [x] **G** A completely vanilla Mojang 1.21.1 client joins a NeoForge Dedicated Server with Off Hand Combat installed, remains connected, and requires no client mod or custom channel.
 - [x] **G** An actual disconnect followed by vanilla `ConnectScreen` reconnect creates fresh server/client transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
 - [x] **G** The reconnect harness waits for the authoritative initial result to settle on the server before disconnecting, preventing a client/server phase race without replacing the real disconnect/reconnect path.
 - [x] **G** An actual `/kill`, client death screen and vanilla respawn request create fresh client/server transient state; the next accepted attack starts at sequence `1` with durability `0 → 1`.
@@ -42,7 +42,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **A** Invalid attack speed produces zero readiness/cap.
 - [x] **G** main → off applies the configured opposite-hand cap once using off-hand attack speed.
 - [x] **G** off → main applies the configured opposite-hand cap once using main-hand attack speed.
-- [ ] **M** rapid physical clicks do not desynchronize client and server readiness.
+- [x] **G** Two same-tick use-key input-path requests are emitted through the production client sender; the first executes once, the second returns `RATE_LIMITED`, and health/durability remain synchronized.
 - [x] **G** swapping the off-hand stack resets off-hand readiness while an unchanged stack continues charging.
 
 ## Attribution and exactly-once effects
@@ -65,11 +65,14 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **G** the right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent.
 - [x] **A** no dedicated off-hand attack key is registered.
 - [x] **G** a right-click/use-key action produces no request, result, damage or durability change while a Screen is open.
-- [ ] **M** shield priority.
-- [ ] **M** bow, crossbow and trident use.
-- [ ] **M** food and potion use.
-- [ ] **M** door, button, lever, chest and other block interaction.
-- [ ] **M** trading, feeding/taming, mounting and other entity interaction.
+- [x] **G** shield priority.
+- [x] **G** bow use priority.
+- [ ] **M** crossbow and trident use.
+- [x] **G** food and potion use.
+- [x] **G** door, button and chest interaction.
+- [ ] **M** lever and other block interaction.
+- [x] **G** villager trading interaction.
+- [ ] **M** feeding/taming, mounting and other entity interaction.
 - [x] **G** a registered input-arbitration rule can deny a real right-click conversion without advancing sequence state or changing target health/durability; replacing the same rule ID with `PASS` restores normal attack execution.
 
 ## Server validation

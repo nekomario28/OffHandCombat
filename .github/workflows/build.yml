@@ -28,14 +28,19 @@ jobs:
           sha256sum \
             validate_port.py \
             .github/workflows/build.yml \
+            .ci/client-interaction-e2e.sh \
             .ci/remote-multiplayer-e2e.sh \
             .ci/remote-lifecycle-e2e.sh \
             .ci/remote-network-stress-e2e.sh \
             .ci/vanilla-server-client-e2e.sh \
+            .ci/vanilla-client-server-e2e.sh \
             build.gradle \
             AUDIT_1.21.1.md \
             TEST_MATRIX.md \
             docs/PUBLIC_API.md \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java \
             src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
             src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java \
@@ -174,6 +179,11 @@ jobs:
             gametest.log
             client-smoke.log
             client-world-e2e.log
+            client-interaction-console.log
+            client-interaction-e2e.log
+            client-villager-e2e.log
+            vanilla-client-modded-server.log
+            vanilla-client-peer.log
             vanilla-peer-prepare.log
             vanilla-peer-server-e2e.log
             vanilla-peer-client-e2e.log

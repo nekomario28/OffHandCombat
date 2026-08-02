@@ -4,9 +4,11 @@ import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
+import dev.nekomario.offhandcombat.api.OffhandInputSource;
 import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRegistry;
 import dev.nekomario.offhandcombat.api.OffhandInputArbitrationRule;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.client.ClientInputHandler;
 import dev.nekomario.offhandcombat.client.ClientModEvents;
 import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.UUID;
@@ -21,6 +23,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -35,18 +38,32 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class OffhandClientWorldE2EHarness {
     private static final String ENABLE_PROPERTY = "offhandcombat.clientWorldE2E";
     private static final String WORLD_NAME = "SmokeWorld";
-    private static final int TIMEOUT_CLIENT_TICKS = 2400;
+    private static final int TIMEOUT_CLIENT_TICKS = 3000;
     private static final int GUI_SUPPRESSION_TICKS = 20;
     private static final int ARBITRATION_SUPPRESSION_TICKS = 20;
+    private static final int ACTIVE_USE_TIMEOUT_TICKS = 80;
+    private static final int ACTIVE_USE_SETTLE_TICKS = 5;
+    private static final int RAPID_CLICK_TIMEOUT_TICKS = 80;
+    private static final Item[] ACTIVE_USE_ITEMS = {
+            Items.SHIELD,
+            Items.BOW,
+            Items.COOKED_BEEF,
+            Items.POTION
+    };
     private static final ResourceLocation ARBITRATION_RULE_ID = ResourceLocation.fromNamespaceAndPath(
             OffHandCombat.MOD_ID, "client_e2e_deny");
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile int targetId = -1;
+    private static volatile int rapidTargetId = -1;
     private static volatile OffhandAttackResult firstResult;
+    private static volatile int activeUseIndex;
+    private static volatile float rapidHealthBefore;
     private static int clientTicks;
     private static int guiSuppressionDeadline;
     private static int arbitrationSuppressionDeadline;
+    private static int activeUseDeadline;
+    private static int rapidClickDeadline;
 
     private OffhandClientWorldE2EHarness() {
     }
@@ -76,13 +93,27 @@ public final class OffhandClientWorldE2EHarness {
             } else if (phase == Phase.WAITING_TO_TRIGGER_ARBITRATION_DENIAL) {
                 beginArbitrationDenialCheck(minecraft);
             } else if (phase == Phase.WAITING_FOR_ARBITRATION_DENIAL) {
-                verifyArbitrationDenialAndArmServer(minecraft);
+                verifyArbitrationDenialAndBeginUsePriority(minecraft);
+            } else if (phase == Phase.PREPARING_ACTIVE_USE) {
+                prepareActiveUseItem(minecraft);
+            } else if (phase == Phase.WAITING_FOR_ACTIVE_USE_SYNC) {
+                triggerActiveUseItem(minecraft);
+            } else if (phase == Phase.WAITING_FOR_ACTIVE_USE) {
+                observeActiveUseItem(minecraft);
+            } else if (phase == Phase.WAITING_FOR_ACTIVE_USE_SETTLE) {
+                verifyActiveUseItem(minecraft);
             } else if (phase == Phase.ARMED) {
                 triggerDedicatedKeyAttack(minecraft);
             } else if (phase == Phase.WAITING_FOR_FIRST_RESULT) {
                 acceptFirstResultAndReplay(minecraft);
             } else if (phase == Phase.WAITING_FOR_REPLAY_RESULT) {
-                verifyReplayResult(minecraft);
+                verifyReplayResultAndPrepareRapidClick(minecraft);
+            } else if (phase == Phase.PREPARING_RAPID_CLICK) {
+                prepareRapidClick(minecraft);
+            } else if (phase == Phase.WAITING_FOR_RAPID_CLICK_SYNC) {
+                triggerRapidClick(minecraft);
+            } else if (phase == Phase.WAITING_FOR_RAPID_CLICK_RESULT) {
+                verifyRapidClick(minecraft);
             }
         } catch (Throwable throwable) {
             fail("client harness exception", throwable);
@@ -130,29 +161,38 @@ public final class OffhandClientWorldE2EHarness {
                 player.setGameMode(GameType.SURVIVAL);
                 player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.WOODEN_SWORD));
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+                player.getFoodData().setFoodLevel(10);
+                player.getInventory().setItem(0, new ItemStack(Items.ARROW, 64));
 
-                Mob target = EntityType.COW.create(player.serverLevel());
+                Mob target = createTarget(player);
                 if (target == null) {
-                    fail("failed to create E2E target");
                     return;
                 }
-                target.setNoAi(true);
-                target.setNoGravity(true);
                 target.setInvulnerable(true);
-                target.setPersistenceRequired();
-                target.setHealth(target.getMaxHealth());
-                target.moveTo(player.getX(), player.getY() + 2.5D, player.getZ(), 0.0F, 0.0F);
-                if (!player.serverLevel().addFreshEntity(target)) {
-                    fail("failed to add E2E target to the integrated server");
-                    return;
-                }
-
                 targetId = target.getId();
                 phase = Phase.WAITING_FOR_CLIENT_SYNC;
             } catch (Throwable throwable) {
                 fail("integrated server setup exception", throwable);
             }
         });
+    }
+
+    private static Mob createTarget(ServerPlayer player) {
+        Mob target = EntityType.COW.create(player.serverLevel());
+        if (target == null) {
+            fail("failed to create E2E target");
+            return null;
+        }
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        target.setPersistenceRequired();
+        target.setHealth(target.getMaxHealth());
+        target.moveTo(player.getX(), player.getY() + 2.5D, player.getZ(), 0.0F, 0.0F);
+        if (!player.serverLevel().addFreshEntity(target)) {
+            fail("failed to add E2E target to the integrated server");
+            return null;
+        }
+        return target;
     }
 
     private static void beginGuiSuppressionCheckWhenClientIsSynchronized(Minecraft minecraft) {
@@ -195,20 +235,7 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
 
-                var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
-                if (state.lastNetworkSequence() != 0L || state.lastNetworkResult() != null) {
-                    fail("dedicated key sent a network request while a GUI was open");
-                    return;
-                }
-                if (Float.compare(living.getHealth(), living.getMaxHealth()) != 0) {
-                    fail("GUI-suppressed key changed target health");
-                    return;
-                }
-                if (player.getOffhandItem().getDamageValue() != 0) {
-                    fail("GUI-suppressed key consumed off-hand durability");
-                    return;
-                }
-
+                verifyNoNetworkAttack(player, living, "GUI-suppressed key");
                 OffHandCombat.LOGGER.info("Off Hand Combat client GUI suppression E2E passed");
                 phase = Phase.WAITING_TO_TRIGGER_ARBITRATION_DENIAL;
             } catch (Throwable throwable) {
@@ -237,7 +264,7 @@ public final class OffhandClientWorldE2EHarness {
         phase = Phase.WAITING_FOR_ARBITRATION_DENIAL;
     }
 
-    private static void verifyArbitrationDenialAndArmServer(Minecraft minecraft) {
+    private static void verifyArbitrationDenialAndBeginUsePriority(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.getSingleplayerServer() == null
                 || clientTicks < arbitrationSuppressionDeadline) {
             return;
@@ -263,32 +290,130 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
 
-                var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
-                if (state.lastNetworkSequence() != 0L || state.lastNetworkResult() != null) {
-                    fail("input-arbitration DENY sent a network request");
-                    return;
-                }
-                if (Float.compare(living.getHealth(), living.getMaxHealth()) != 0) {
-                    fail("input-arbitration DENY changed target health");
-                    return;
-                }
-                if (player.getOffhandItem().getDamageValue() != 0) {
-                    fail("input-arbitration DENY consumed off-hand durability");
-                    return;
-                }
-
-                living.setInvulnerable(false);
-                ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
+                verifyNoNetworkAttack(player, living, "input-arbitration DENY");
                 OffHandCombat.LOGGER.info("Off Hand Combat client arbitration denial E2E passed");
-                phase = Phase.ARMED;
+                activeUseIndex = 0;
+                phase = Phase.PREPARING_ACTIVE_USE;
             } catch (Throwable throwable) {
                 fail("input-arbitration denial verification exception", throwable);
             }
         });
     }
 
-    private static void triggerDedicatedKeyAttack(Minecraft minecraft) {
+    private static void prepareActiveUseItem(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null
+                || activeUseIndex < 0 || activeUseIndex >= ACTIVE_USE_ITEMS.length) {
+            return;
+        }
+
+        phase = Phase.SETTING_ACTIVE_USE;
+        UUID playerId = minecraft.player.getUUID();
+        Item item = ACTIVE_USE_ITEMS[activeUseIndex];
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                Entity target = player == null ? null : player.serverLevel().getEntity(targetId);
+                if (player == null || !(target instanceof LivingEntity living)) {
+                    fail("server state was unavailable while preparing active-use item " + item);
+                    return;
+                }
+                player.stopUsingItem();
+                player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(item));
+                if (item == Items.COOKED_BEEF) {
+                    player.getFoodData().setFoodLevel(10);
+                }
+                verifyNoNetworkAttack(player, living, "active-use setup");
+                phase = Phase.WAITING_FOR_ACTIVE_USE_SYNC;
+            } catch (Throwable throwable) {
+                fail("active-use setup exception for " + item, throwable);
+            }
+        });
+    }
+
+    private static void triggerActiveUseItem(Minecraft minecraft) {
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) {
+            return;
+        }
+        Item item = ACTIVE_USE_ITEMS[activeUseIndex];
+        Entity target = minecraft.level.getEntity(targetId);
+        if (target == null || !minecraft.player.getOffhandItem().is(item) || minecraft.player.isUsingItem()) {
+            return;
+        }
+        if (item == Items.BOW && minecraft.player.getProjectile(minecraft.player.getOffhandItem()).isEmpty()) {
+            return;
+        }
+        if (item == Items.COOKED_BEEF && !minecraft.player.canEat(false)) {
+            return;
+        }
+
+        minecraft.hitResult = new EntityHitResult(target);
+        minecraft.options.keyUse.setDown(true);
+        activeUseDeadline = clientTicks + ACTIVE_USE_TIMEOUT_TICKS;
+        phase = Phase.WAITING_FOR_ACTIVE_USE;
+    }
+
+    private static void observeActiveUseItem(Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return;
+        }
+        if (minecraft.player.isUsingItem()
+                && minecraft.player.getUsedItemHand() == InteractionHand.OFF_HAND) {
+            minecraft.options.keyUse.setDown(false);
+            activeUseDeadline = clientTicks + ACTIVE_USE_SETTLE_TICKS;
+            phase = Phase.WAITING_FOR_ACTIVE_USE_SETTLE;
+            return;
+        }
+        if (clientTicks >= activeUseDeadline) {
+            minecraft.options.keyUse.setDown(false);
+            fail("right-click did not start normal off-hand use for " + ACTIVE_USE_ITEMS[activeUseIndex]);
+        }
+    }
+
+    private static void verifyActiveUseItem(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null
+                || clientTicks < activeUseDeadline) {
+            return;
+        }
+
+        phase = Phase.VERIFYING_ACTIVE_USE;
+        UUID playerId = minecraft.player.getUUID();
+        Item item = ACTIVE_USE_ITEMS[activeUseIndex];
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                Entity target = player == null ? null : player.serverLevel().getEntity(targetId);
+                if (player == null || !(target instanceof LivingEntity living)) {
+                    fail("server state was unavailable while verifying active-use item " + item);
+                    return;
+                }
+                verifyNoNetworkAttack(player, living, "normal use of " + item);
+                player.stopUsingItem();
+                OffHandCombat.LOGGER.info(
+                        "Off Hand Combat right-click priority E2E passed for active-use item {}", item);
+
+                activeUseIndex++;
+                if (activeUseIndex < ACTIVE_USE_ITEMS.length) {
+                    phase = Phase.PREPARING_ACTIVE_USE;
+                } else {
+                    living.setInvulnerable(false);
+                    living.setHealth(living.getMaxHealth());
+                    player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+                    ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
+                    OffHandCombat.LOGGER.info(
+                            "Off Hand Combat active-use priority E2E passed: shield, bow, food and potion");
+                    phase = Phase.ARMED;
+                }
+            } catch (Throwable throwable) {
+                fail("active-use verification exception for " + item, throwable);
+            }
+        });
+    }
+
+    private static void triggerDedicatedKeyAttack(Minecraft minecraft) {
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null
+                || !minecraft.player.getOffhandItem().is(Items.IRON_SWORD)) {
             return;
         }
         Entity target = minecraft.level.getEntity(targetId);
@@ -330,7 +455,7 @@ public final class OffhandClientWorldE2EHarness {
         phase = Phase.WAITING_FOR_REPLAY_RESULT;
     }
 
-    private static void verifyReplayResult(Minecraft minecraft) {
+    private static void verifyReplayResultAndPrepareRapidClick(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.getSingleplayerServer() == null || firstResult == null) {
             return;
         }
@@ -361,16 +486,161 @@ public final class OffhandClientWorldE2EHarness {
                     return;
                 }
 
-                phase = Phase.PASSED;
                 OffHandCombat.LOGGER.info(
-                        "Off Hand Combat client world E2E passed: sequence={}, target={}, health={} -> {}, durability={} -> {}",
+                        "Off Hand Combat client attack and replay E2E passed: sequence={}, target={}, health={} -> {}, durability={} -> {}",
                         firstResult.sequence(), firstResult.targetId(),
                         firstResult.targetHealthBefore(), firstResult.targetHealthAfter(),
                         firstResult.durabilityBefore(), firstResult.durabilityAfter());
+                phase = Phase.PREPARING_RAPID_CLICK;
             } catch (Throwable throwable) {
                 fail("server verification exception", throwable);
             }
         });
+    }
+
+    private static void prepareRapidClick(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null) {
+            return;
+        }
+
+        phase = Phase.SETTING_UP_RAPID_CLICK;
+        UUID playerId = minecraft.player.getUUID();
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                if (player == null) {
+                    fail("server player was unavailable while preparing rapid-click E2E");
+                    return;
+                }
+                Mob target = createTarget(player);
+                if (target == null) {
+                    return;
+                }
+                target.setInvulnerable(false);
+                target.moveTo(
+                        player.getX(),
+                        player.getEyeY() - target.getBbHeight() * 0.5D,
+                        player.getZ() + 2.0D,
+                        0.0F, 0.0F);
+                player.setYRot(0.0F);
+                player.setXRot(0.0F);
+                player.setYHeadRot(0.0F);
+                rapidTargetId = target.getId();
+                rapidHealthBefore = target.getHealth();
+                player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+                ((OffhandAttackAccess) player).ofc$setOffhandAttackStrengthTicker(100);
+                player.getData(OffhandCombatAttachments.COMBAT_STATE).setLastClientResult(
+                        OffhandAttackResult.rejected(
+                                Long.MAX_VALUE, -1, OffhandAttackStatus.INTERNAL_ERROR,
+                                player.level().getGameTime()));
+                phase = Phase.WAITING_FOR_RAPID_CLICK_SYNC;
+            } catch (Throwable throwable) {
+                fail("rapid-click setup exception", throwable);
+            }
+        });
+    }
+
+    private static void triggerRapidClick(Minecraft minecraft) {
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null
+                || !minecraft.player.getOffhandItem().is(Items.IRON_SWORD)) {
+            return;
+        }
+        Entity target = minecraft.level.getEntity(rapidTargetId);
+        if (target == null) {
+            return;
+        }
+
+        minecraft.player.setYRot(0.0F);
+        minecraft.player.setXRot(0.0F);
+        minecraft.hitResult = new EntityHitResult(target);
+        try {
+            var sendMethod = ClientInputHandler.class.getDeclaredMethod(
+                    "trySendAttack", OffhandInputSource.class);
+            sendMethod.setAccessible(true);
+            boolean firstSent = (boolean) sendMethod.invoke(null, OffhandInputSource.USE_KEY);
+            boolean secondSent = (boolean) sendMethod.invoke(null, OffhandInputSource.USE_KEY);
+            if (!firstSent || !secondSent) {
+                fail("same-tick use-key requests were not both emitted");
+                return;
+            }
+        } catch (ReflectiveOperationException exception) {
+            fail("same-tick use-key bridge exception", exception);
+            return;
+        }
+        rapidClickDeadline = clientTicks + RAPID_CLICK_TIMEOUT_TICKS;
+        phase = Phase.WAITING_FOR_RAPID_CLICK_RESULT;
+    }
+
+    private static void verifyRapidClick(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null) {
+            return;
+        }
+        OffhandAttackResult result = minecraft.player
+                .getData(OffhandCombatAttachments.COMBAT_STATE)
+                .lastClientResult();
+        if (result == null || result.targetId() != rapidTargetId
+                || result.status() != OffhandAttackStatus.RATE_LIMITED) {
+            if (clientTicks >= rapidClickDeadline) {
+                fail("two same-tick use-key requests did not produce a RATE_LIMITED second result; last=" + result);
+            }
+            return;
+        }
+
+        phase = Phase.VERIFYING_RAPID_CLICK;
+        UUID playerId = minecraft.player.getUUID();
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                Entity target = player == null ? null : player.serverLevel().getEntity(rapidTargetId);
+                if (player == null || !(target instanceof LivingEntity living)) {
+                    fail("server state was unavailable after rapid-click E2E");
+                    return;
+                }
+                OffhandAttackResult serverResult = player
+                        .getData(OffhandCombatAttachments.COMBAT_STATE)
+                        .lastNetworkResult();
+                if (serverResult == null || serverResult.status() != OffhandAttackStatus.RATE_LIMITED
+                        || serverResult.sequence() != result.sequence()) {
+                    fail("server did not preserve the rapid-click RATE_LIMITED result");
+                    return;
+                }
+                if (!(living.getHealth() < rapidHealthBefore)) {
+                    fail("the first rapid-click request did not execute");
+                    return;
+                }
+                if (player.getOffhandItem().getDamageValue() != 1) {
+                    fail("rapid-click burst consumed off-hand durability more or less than once");
+                    return;
+                }
+
+                phase = Phase.PASSED;
+                OffHandCombat.LOGGER.info(
+                        "Off Hand Combat same-tick use-key E2E passed: finalSequence={}, secondStatus={}, health={} -> {}, durability=1",
+                        result.sequence(), result.status(), rapidHealthBefore, living.getHealth());
+                OffHandCombat.LOGGER.info(
+                        "Off Hand Combat client world E2E passed: use priority, GUI/arbitration suppression, attack replay and rapid-click rate limiting");
+            } catch (Throwable throwable) {
+                fail("rapid-click server verification exception", throwable);
+            }
+        });
+    }
+
+    private static void verifyNoNetworkAttack(
+            ServerPlayer player,
+            LivingEntity target,
+            String context) {
+        var state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (state.lastNetworkSequence() != 0L || state.lastNetworkResult() != null) {
+            throw new IllegalStateException(context + " sent a network request");
+        }
+        if (Float.compare(target.getHealth(), target.getMaxHealth()) != 0) {
+            throw new IllegalStateException(context + " changed target health");
+        }
+        if (player.getOffhandItem().isDamageableItem() && player.getOffhandItem().getDamageValue() != 0) {
+            throw new IllegalStateException(context + " consumed off-hand durability");
+        }
     }
 
     private static void fail(String reason) {
@@ -397,10 +667,21 @@ public final class OffhandClientWorldE2EHarness {
         WAITING_TO_TRIGGER_ARBITRATION_DENIAL,
         WAITING_FOR_ARBITRATION_DENIAL,
         VERIFYING_ARBITRATION_DENIAL,
+        PREPARING_ACTIVE_USE,
+        SETTING_ACTIVE_USE,
+        WAITING_FOR_ACTIVE_USE_SYNC,
+        WAITING_FOR_ACTIVE_USE,
+        WAITING_FOR_ACTIVE_USE_SETTLE,
+        VERIFYING_ACTIVE_USE,
         ARMED,
         WAITING_FOR_FIRST_RESULT,
         WAITING_FOR_REPLAY_RESULT,
         VERIFYING_SERVER_STATE,
+        PREPARING_RAPID_CLICK,
+        SETTING_UP_RAPID_CLICK,
+        WAITING_FOR_RAPID_CLICK_SYNC,
+        WAITING_FOR_RAPID_CLICK_RESULT,
+        VERIFYING_RAPID_CLICK,
         PASSED,
         FAILED
     }
