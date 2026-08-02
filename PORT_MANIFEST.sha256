@@ -1,6 +1,6 @@
 fb2e42a3cc32d2b5749a17c87bf3bbb985eed0efcfedc175c218e0d6909d8a56  .ci/client-interaction-e2e.sh
 cdc0f37110e9c3aa21b536c7d07d7cd8f1209537b0ffe66e6c83969067606e35  .ci/client-smoke.sh
-43313ea83346fc9223ee516fe3469251486ba686a8991b090229d61d43759d6b  .ci/client-world-e2e.sh
+ae8b7f2ca53170b8b4f6437e30f811f20995809ba620389ad4e60908944a0c1e  .ci/client-world-e2e.sh
 d800e7fbd825c47cda5227956b237501ff22e88ce12c65e1362bba35af0cc014  .ci/remote-lifecycle-e2e.sh
 6b3d3f9d55a24047c8acadd41b686dbf4f0794dd46eb8cdb44383264df587978  .ci/remote-multiplayer-e2e.sh
 88b70be4ce0d6c9b830f15fc8ee5900492c23e7a09e637d807b045f46900af92  .ci/remote-network-stress-e2e.sh

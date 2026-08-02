@@ -91,17 +91,6 @@ if [[ ! -f "$WORLD_SOURCE/level.dat" ]]; then
   prepare_smoke_world
 fi
 
-if [[ -f .ci/.full-release-retrigger && -f .ci/full_release_finalize.py ]]; then
-  python3 .ci/full_release_finalize.py prepare
-  exec bash .ci/client-world-e2e.sh "$TIMEOUT_SECONDS"
-fi
-
-if [[ -f .ci/.interaction-retrigger && -f .ci/finalize_port.py ]]; then
-  python3 .ci/finalize_port_v2.py
-  python3 .ci/finalize_port.py prepare
-  exec bash .ci/client-world-e2e.sh "$TIMEOUT_SECONDS"
-fi
-
 rm -rf "$WORLD_DESTINATION"
 mkdir -p "$(dirname "$WORLD_DESTINATION")"
 cp -a "$WORLD_SOURCE" "$WORLD_DESTINATION"
@@ -159,8 +148,3 @@ grep -F "Off Hand Combat client arbitration denial E2E passed" "$LOG_FILE"
 grep -F "$SUCCESS_MARKER" "$LOG_FILE"
 
 bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"
-
-if [[ -f .git/offhandcombat-finalize-pending ]]; then
-  bash .ci/vanilla-server-client-e2e.sh 420
-  python3 .ci/finalize_port.py finalize
-fi
