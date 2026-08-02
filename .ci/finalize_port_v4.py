@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,3 +60,5 @@ if new_cleanup not in finalizer:
         raise SystemExit("finalizer v4 cleanup anchor missing")
     finalizer = finalizer.replace(old_cleanup, new_cleanup, 1)
 FINALIZER.write_text(finalizer, encoding="utf-8")
+
+runpy.run_path(str(ROOT / ".ci/finalize_port_v5.py"), run_name="__main__")
