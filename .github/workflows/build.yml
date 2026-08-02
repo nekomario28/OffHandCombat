@@ -1,183 +1,212 @@
 name: Build and audit
 
 on:
+  push:
+    branches: [ master, 1.21.1-neoforge ]
   pull_request:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: offhandcombat-interaction-priority
-  cancel-in-progress: true
+  contents: read
 
 jobs:
   build:
-    runs-on: self-hosted
-    timeout-minutes: 35
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ci/self-hosted-release-gate
-          fetch-depth: 0
-
-      - name: Apply staged interaction corrections
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          gradle = Path('build.gradle')
-          text = gradle.read_text()
-          text = text.replace(
-              "systemProperty 'offhandcombat.networkStressE2E', 'true'",
-              "systemProperty 'offhandcombat.networkStressClientE2E', 'true'")
-          text = text.replace(
-              "programArguments = ['--username', 'OffhandInteractionE2E']",
-              "programArguments = ['--username', 'OHCInteract']")
-          gradle.write_text(text)
-
-          harness = Path('src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java')
-          text = harness.read_text()
-
-          old_position = 'interactionPos = player.blockPosition().offset(0, 1, 2);'
-          new_position = 'interactionPos = player.blockPosition().offset(0, 2, 2);'
-          if old_position in text:
-              text = text.replace(old_position, new_position, 1)
-          elif new_position not in text:
-              raise SystemExit('interaction position anchor was not recognized')
-
-          post_anchor = '''    @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Post event) {
-'''
-          pre_method = '''    @SubscribeEvent
-    public static void onClientTickPre(ClientTickEvent.Pre event) {
-        if (!Boolean.getBoolean(ENABLE_PROPERTY) || phase == Phase.PASSED || phase == Phase.FAILED) {
-            return;
-        }
-        Minecraft minecraft = Minecraft.getInstance();
-        try {
-            switch (phase) {
-                case WAITING_FOR_BUTTON_SYNC -> triggerButtonWhenTargeted(minecraft);
-                case WAITING_FOR_DOOR_SYNC -> triggerDoorWhenTargeted(minecraft);
-                case WAITING_FOR_CHEST_SYNC -> triggerChestWhenTargeted(minecraft);
-                default -> {
-                }
-            }
-        } catch (Throwable throwable) {
-            fail("interaction pre-tick exception", throwable);
-        }
-    }
-
-'''
-          if pre_method not in text:
-              if text.count(post_anchor) != 1:
-                  raise SystemExit('post-tick anchor was not recognized')
-              text = text.replace(post_anchor, pre_method + post_anchor, 1)
-
-          for old_case, new_case in (
-              ('                case WAITING_FOR_BUTTON_SYNC -> triggerButtonWhenTargeted(minecraft);',
-               '                case WAITING_FOR_BUTTON_SYNC -> { }'),
-              ('                case WAITING_FOR_DOOR_SYNC -> triggerDoorWhenTargeted(minecraft);',
-               '                case WAITING_FOR_DOOR_SYNC -> { }'),
-              ('                case WAITING_FOR_CHEST_SYNC -> triggerChestWhenTargeted(minecraft);',
-               '                case WAITING_FOR_CHEST_SYNC -> { }'),
-          ):
-              if old_case in text:
-                  text = text.replace(old_case, new_case, 1)
-
-          old_target_tail = '''        if (minecraft.hitResult instanceof BlockHitResult blockHitResult
-                && blockHitResult.getBlockPos().equals(interactionPos)) {
-            return true;
-        }
-        if (clientTicks >= interactionDeadline) {
-            fail(interaction + " was not targeted; hitResult=" + minecraft.hitResult);
-        }
-        return false;
-'''
-          new_target_tail = '''        minecraft.hitResult = new BlockHitResult(
-                aimPoint,
-                Direction.NORTH,
-                interactionPos,
-                false);
-        return true;
-'''
-          if old_target_tail in text:
-              text = text.replace(old_target_tail, new_target_tail, 1)
-          elif new_target_tail not in text:
-              raise SystemExit('block hit-result verification block was not recognized')
-
-          harness.write_text(text)
-          PY
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
-
-      - name: Compile candidate
+      - name: Static port audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            validate_port.py \
+            .github/workflows/build.yml \
+            .ci/client-interaction-e2e.sh \
+            .ci/remote-multiplayer-e2e.sh \
+            .ci/remote-lifecycle-e2e.sh \
+            .ci/remote-network-stress-e2e.sh \
+            .ci/vanilla-server-client-e2e.sh \
+            .ci/vanilla-client-server-e2e.sh \
+            build.gradle \
+            AUDIT_1.21.1.md \
+            TEST_MATRIX.md \
+            docs/PUBLIC_API.md \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java \
+            src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandLifecycleClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressServerE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressClientE2EHarness.java \
+            src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandVanillaServerClientE2EHarness.java \
+            src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
+            | tee static-audit.log
+          python3 validate_port.py 2>&1 | tee -a static-audit.log
+          sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
+      - name: Unit tests and build
         shell: bash
         run: |
           set -o pipefail
           gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+      - name: Dedicated server smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run run/server
+          printf 'eula=true\n' > run/eula.txt
+          printf 'eula=true\n' > run/server/eula.txt
+          printf 'online-mode=false\nserver-port=0\nlevel-name=world\n' > run/server.properties
 
-      - name: Prepare smoke world and recheck physical input
+          setsid gradle --no-daemon runServer > server-smoke.log 2>&1 &
+          server_process=$!
+          ready=0
+          latest_log=''
+
+          for _ in $(seq 1 180); do
+            latest_log="$(find run -type f -path '*/logs/latest.log' -print -quit 2>/dev/null || true)"
+            if [[ -n "$latest_log" ]] && grep -Fq 'Done (' "$latest_log"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_process" 2>/dev/null; then
+              cat server-smoke.log
+              [[ -n "$latest_log" ]] && cat "$latest_log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          kill -INT -- "-$server_process" 2>/dev/null || true
+          for _ in $(seq 1 20); do
+            kill -0 "$server_process" 2>/dev/null || break
+            sleep 1
+          done
+          kill -KILL -- "-$server_process" 2>/dev/null || true
+          wait "$server_process" 2>/dev/null || true
+
+          if [[ "$ready" -ne 1 ]]; then
+            cat server-smoke.log
+            [[ -n "$latest_log" ]] && cat "$latest_log"
+            exit 1
+          fi
+
+          ! grep -Eiq 'mixin apply failed|exception in thread|fatal error|failed to load mod' "$latest_log"
+          grep -F 'Done (' "$latest_log"
+          cp "$latest_log" dedicated-server.log
+      - name: GameTest server
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
+          grep -Fq '10 tests are now running' gametest.log
+          grep -Fq '10 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 10 required tests passed :)' gametest.log
+      - name: Ensure virtual display and network controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=()
+          command -v xvfb-run >/dev/null 2>&1 || packages+=(xvfb)
+          command -v tc >/dev/null 2>&1 || packages+=(iproute2)
+          if [[ "${#packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${packages[@]}"
+          fi
+      - name: Physical client smoke test
+        shell: bash
+        run: bash .ci/client-smoke.sh 180
+      - name: Integrated client world and network E2E
         shell: bash
         run: bash .ci/client-world-e2e.sh 240
-
-      - name: Block interaction priority E2E
+      - name: Client-only mod against Mojang vanilla server
         shell: bash
-        run: |
-          set +e
-          bash .ci/client-interaction-e2e.sh 240 > client-interaction-console.log 2>&1
-          status=$?
-          grep -E 'interaction priority E2E (passed|failed)' client-interaction-console.log || true
-          if [[ "$status" -ne 0 ]]; then
-            echo '--- interaction E2E tail ---'
-            tail -n 140 client-interaction-console.log
-          fi
-          exit "$status"
-
-      - name: Inspect villager trading API
+        run: bash .ci/vanilla-server-client-e2e.sh 420
+      - name: Two remote clients against a separate dedicated server
         shell: bash
-        run: |
-          set -euo pipefail
-          artifact="$(find build/moddev/artifacts -type f -name 'neoforge-*.jar' -print -quit)"
-          test -n "$artifact"
-          {
-            javap -classpath "$artifact" -public net.minecraft.world.entity.npc.Villager
-            javap -classpath "$artifact" -public net.minecraft.world.entity.npc.VillagerData
-            javap -classpath "$artifact" -public net.minecraft.world.item.trading.MerchantOffer
-          } | tee villager-api.log
-
-      - name: Persist verified interaction corrections
+        run: bash .ci/remote-multiplayer-e2e.sh 420
+      - name: Reconnect, death/respawn and dimension lifecycle E2E
+        shell: bash
+        run: bash .ci/remote-lifecycle-e2e.sh 480
+      - name: Delayed, reordered and burst network stress E2E
+        shell: bash
+        run: bash .ci/remote-network-stress-e2e.sh 600
+      - name: Verify distributable JAR
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name nekomario28
-          git config user.email '206304251+nekomario28@users.noreply.github.com'
-          git add build.gradle src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java
-          if ! git diff --cached --quiet; then
-            git commit -m 'Correct physical interaction E2E targeting'
-            git push origin HEAD:ci/self-hosted-release-gate
-          fi
-
-      - name: Upload interaction evidence
+          jar_file="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -print -quit)"
+          test -n "$jar_file"
+          for entry in \
+            LICENSE \
+            META-INF/neoforge.mods.toml \
+            offhandcombat.mixins.json \
+            dev/nekomario/offhandcombat/OffHandCombat.class \
+            assets/offhandcombat/lang/en_us.json \
+            assets/offhandcombat/lang/ja_jp.json \
+            offhandcombat.png
+          do
+            jar tf "$jar_file" | grep -Fqx "$entry"
+          done
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/gametest/'
+          ! jar tf "$jar_file" | grep -Fq 'data/offhandcombat/structure/gametest/'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/remotetest/'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="bettercombat"'
+          unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="combatify"'
+          sha256sum "$jar_file"
+      - name: Upload JARs and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: offhandcombat-interaction-priority-${{ github.sha }}
+          name: offhandcombat-1.21.1-${{ github.sha }}
           path: |
+            static-audit.log
             build.log
-            client-world-prepare.log
+            server-smoke.log
+            dedicated-server.log
+            gametest.log
+            client-smoke.log
             client-world-e2e.log
             client-interaction-console.log
             client-interaction-e2e.log
-            villager-api.log
+            client-villager-e2e.log
+            vanilla-client-modded-server.log
+            vanilla-client-peer.log
+            vanilla-peer-prepare.log
+            vanilla-peer-server-e2e.log
+            vanilla-peer-client-e2e.log
+            vanilla-peer-server-latest.log
+            vanilla-peer-client-latest.log
+            remote-prepare.log
+            remote-server-e2e.log
+            remote-client-a-e2e.log
+            remote-client-b-e2e.log
+            remote-server-latest.log
+            remote-client-a-latest.log
+            remote-client-b-latest.log
+            lifecycle-prepare.log
+            lifecycle-server-e2e.log
+            lifecycle-client-e2e.log
+            lifecycle-server-latest.log
+            lifecycle-client-latest.log
+            stress-prepare.log
+            stress-server-e2e.log
+            stress-client-e2e.log
+            stress-server-latest.log
+            stress-client-latest.log
             run/**/logs/latest.log
             build/libs/*.jar
-          if-no-files-found: warn
+            build/reports/tests/test/**
+          if-no-files-found: error
