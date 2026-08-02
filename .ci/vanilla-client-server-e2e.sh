@@ -10,6 +10,7 @@ CLIENT_DIR="run/vanilla-client-peer"
 CACHE_DIR="build/vanilla-client-${MC_VERSION}"
 SERVER_CONSOLE_LOG="vanilla-client-modded-server.log"
 CLIENT_LOG="vanilla-client-peer.log"
+DIAGNOSTIC_LOG="client-interaction-console.log"
 SERVER_PID=""
 CLIENT_PID=""
 
@@ -32,8 +33,33 @@ stop_group() {
   wait "$pid" 2>/dev/null || true
 }
 
+append_diagnostics() {
+  {
+    echo '--- pure vanilla client diagnostic ---'
+    if [[ -f "$CLIENT_LOG" ]]; then
+      cat "$CLIENT_LOG"
+    else
+      echo "missing: $CLIENT_LOG"
+    fi
+    echo '--- modded peer server console diagnostic ---'
+    if [[ -f "$SERVER_CONSOLE_LOG" ]]; then
+      cat "$SERVER_CONSOLE_LOG"
+    else
+      echo "missing: $SERVER_CONSOLE_LOG"
+    fi
+    echo '--- modded peer server latest.log diagnostic ---'
+    if [[ -f "$SERVER_DIR/logs/latest.log" ]]; then
+      cat "$SERVER_DIR/logs/latest.log"
+    else
+      echo "missing: $SERVER_DIR/logs/latest.log"
+    fi
+    echo '--- end pure vanilla diagnostic ---'
+  } >> "$DIAGNOSTIC_LOG" 2>&1 || true
+}
+
 cleanup() {
   local status=$?
+  append_diagnostics
   stop_group "$CLIENT_PID"
   stop_group "$SERVER_PID"
   exit "$status"
