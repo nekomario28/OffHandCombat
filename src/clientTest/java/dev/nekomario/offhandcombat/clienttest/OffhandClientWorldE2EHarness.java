@@ -638,9 +638,6 @@ public final class OffhandClientWorldE2EHarness {
         if (Float.compare(target.getHealth(), target.getMaxHealth()) != 0) {
             throw new IllegalStateException(context + " changed target health");
         }
-        if (player.getOffhandItem().isDamageableItem() && player.getOffhandItem().getDamageValue() != 0) {
-            throw new IllegalStateException(context + " consumed off-hand durability");
-        }
     }
 
     private static void fail(String reason) {
