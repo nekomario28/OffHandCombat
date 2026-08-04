@@ -12,6 +12,7 @@ public final class OffhandCombatState {
     private final SequenceWindow networkSequences = new SequenceWindow();
     private long nextClientSequence = 1L;
     private long nextApiSequence = 1L;
+    private long lastClientCooldownResetSequence;
     private ItemStack previousOffhand = ItemStack.EMPTY;
     private boolean attackingWithOffhand;
     private @Nullable AttributeMap activeOffhandAttributes;
@@ -66,8 +67,17 @@ public final class OffhandCombatState {
         return value;
     }
 
+    public boolean markClientCooldownReset(long sequence) {
+        if (sequence <= 0L || sequence == lastClientCooldownResetSequence) {
+            return false;
+        }
+        lastClientCooldownResetSequence = sequence;
+        return true;
+    }
+
     public void copyClientDimensionStateFrom(OffhandCombatState source) {
         nextClientSequence = source.nextClientSequence;
+        lastClientCooldownResetSequence = source.lastClientCooldownResetSequence;
         lastClientResult = source.lastClientResult;
     }
 
