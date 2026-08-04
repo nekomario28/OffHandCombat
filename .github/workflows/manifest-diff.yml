@@ -1,8 +1,7 @@
 name: Manifest regeneration diagnostic
 
 on:
-  push:
-    branches: [ fix/client-swing-cooldown-hud ]
+  pull_request:
 
 permissions:
   contents: read
