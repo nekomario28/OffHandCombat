@@ -1,0 +1,48 @@
+name: Manifest regeneration diagnostic
+
+on:
+  push:
+    branches: [ fix/client-swing-cooldown-hud ]
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/client-swing-cooldown-hud
+      - name: Regenerate and compare manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          excluded = {
+              'PORT_MANIFEST.sha256',
+              '.github/workflows/manifest-diff.yml',
+          }
+          lines = []
+          for raw in subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0'):
+              if not raw:
+                  continue
+              path = raw.decode()
+              if path in excluded:
+                  continue
+              lines.append(f'{hashlib.sha256(Path(path).read_bytes()).hexdigest()}  {path}')
+          Path('PORT_MANIFEST.regenerated').write_text('\n'.join(sorted(lines)) + '\n', encoding='utf-8')
+          PY
+          diff -u PORT_MANIFEST.sha256 PORT_MANIFEST.regenerated | tee PORT_MANIFEST.diff || true
+          sha256sum --check PORT_MANIFEST.regenerated
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offhandcombat-manifest-diagnostic-${{ github.sha }}
+          path: |
+            PORT_MANIFEST.sha256
+            PORT_MANIFEST.regenerated
+            PORT_MANIFEST.diff
+          if-no-files-found: error
