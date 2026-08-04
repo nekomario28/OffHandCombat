@@ -26,6 +26,7 @@ public final class ClientHudHandler {
             "minecraft", "hud/crosshair_attack_indicator_background");
     private static final ResourceLocation CROSSHAIR_PROGRESS = ResourceLocation.fromNamespaceAndPath(
             "minecraft", "hud/crosshair_attack_indicator_progress");
+    private static boolean renderLogged;
 
     private ClientHudHandler() {
     }
@@ -62,8 +63,10 @@ public final class ClientHudHandler {
         AttackIndicatorStatus indicator = minecraft.options.attackIndicator().get();
         if (indicator == AttackIndicatorStatus.HOTBAR) {
             renderHotbar(graphics, strength, player.getMainArm());
+            logRendered(indicator, strength);
         } else if (indicator == AttackIndicatorStatus.CROSSHAIR) {
             renderCrosshair(graphics, strength);
+            logRendered(indicator, strength);
         }
     }
 
@@ -100,5 +103,17 @@ public final class ClientHudHandler {
         } finally {
             graphics.disableScissor();
         }
+    }
+
+    private static void logRendered(AttackIndicatorStatus indicator, float strength) {
+        if (renderLogged) {
+            return;
+        }
+        renderLogged = true;
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat off-hand cooldown HUD rendered: mode={}, strength={}",
+                indicator,
+                strength
+        );
     }
 }
