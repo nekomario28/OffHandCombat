@@ -39,6 +39,35 @@ jobs:
             src/main/java/dev/nekomario/offhandcombat/network/OffHandCombatNetwork.java \
             src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java \
             src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java
+      - name: Generate final manifest candidate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          excluded = {
+              'PORT_MANIFEST.sha256',
+              '.github/workflows/client-feedback-fix.yml',
+          }
+          paths = subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0')
+          lines = []
+          for raw in paths:
+              if not raw:
+                  continue
+              path = raw.decode()
+              if path in excluded:
+                  continue
+              digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+              lines.append(f'{digest}  {path}')
+          Path('PORT_MANIFEST.generated').write_text(
+              '\n'.join(sorted(lines)) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          wc -l PORT_MANIFEST.generated
+          sha256sum PORT_MANIFEST.generated
       - name: Ensure virtual display
         shell: bash
         run: |
@@ -68,12 +97,13 @@ jobs:
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class'
           ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
           sha256sum "$jar_file"
-      - name: Upload candidate JAR and logs
+      - name: Upload candidate JAR, manifest and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: offhandcombat-client-feedback-${{ github.sha }}
           path: |
+            PORT_MANIFEST.generated
             build/libs/*.jar
             client-smoke.log
             client-world-e2e.log
