@@ -34,7 +34,8 @@ jobs:
             src/main/java/dev/nekomario/offhandcombat/client/ClientHudHandler.java \
             src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java \
             src/main/java/dev/nekomario/offhandcombat/network/OffHandCombatNetwork.java \
-            src/test/java/dev/nekomario/offhandcombat/attachment/OffhandCombatStateTest.java
+            src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java \
+            src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java
       - name: Ensure virtual display
         shell: bash
         run: |
@@ -58,6 +59,7 @@ jobs:
           test -n "$jar_file"
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/client/ClientHudHandler.class'
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/client/ClientInputHandler.class'
+          jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class'
           sha256sum "$jar_file"
       - name: Upload candidate JAR
         uses: actions/upload-artifact@v4
