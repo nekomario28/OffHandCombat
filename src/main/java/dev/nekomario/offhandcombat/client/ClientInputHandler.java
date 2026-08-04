@@ -17,6 +17,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -67,7 +68,7 @@ public final class ClientInputHandler {
                 && !player.isCrouching())) {
             return;
         }
-        if (trySendAttack(OffhandInputSource.USE_KEY)) {
+        if (trySendAttack(OffhandInputSource.USE_KEY) || trySwingInAir(OffhandInputSource.USE_KEY)) {
             event.setSwingHand(false);
             event.setCanceled(true);
         }
@@ -98,6 +99,31 @@ public final class ClientInputHandler {
 
         long sequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).nextClientSequence();
         PacketDistributor.sendToServer(new OffhandAttackRequestPayload(sequence, target.getId()));
+        return true;
+    }
+
+    private static boolean trySwingInAir(OffhandInputSource inputSource) {
+        Minecraft minecraft = Minecraft.getInstance();
+        LocalPlayer player = minecraft.player;
+        ClientPacketListener connection = minecraft.getConnection();
+        if (minecraft.screen != null || player == null || connection == null || player.isUsingItem()) {
+            return false;
+        }
+        if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)
+                || minecraft.hitResult == null
+                || minecraft.hitResult.getType() != HitResult.Type.MISS) {
+            return false;
+        }
+        if (!OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
+            return false;
+        }
+        OffhandInputArbitrationRule.Decision decision = OffhandInputArbitrationRegistry.evaluate(
+                new OffhandInputContext(player, null, player.getOffhandItem().copy(), inputSource));
+        if (decision == OffhandInputArbitrationRule.Decision.DENY) {
+            return false;
+        }
+
+        player.swing(InteractionHand.OFF_HAND);
         return true;
     }
 }
