@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,6 +30,9 @@ jobs:
         shell: bash
         run: |
           sha256sum \
+            .ci/client-interaction-e2e.sh \
+            build.gradle \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java \
             src/main/java/dev/nekomario/offhandcombat/client/ClientInputHandler.java \
             src/main/java/dev/nekomario/offhandcombat/client/ClientHudHandler.java \
             src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java \
@@ -45,12 +48,15 @@ jobs:
           fi
           sudo apt-get update
           sudo apt-get install -y xvfb
-      - name: Unit tests and build
+      - name: Unit tests, client harness compilation and build
         shell: bash
-        run: gradle --no-daemon clean test build --stacktrace
+        run: gradle --no-daemon clean test compileClientTestJava build --stacktrace
       - name: Physical client startup
         shell: bash
         run: bash .ci/client-smoke.sh 180
+      - name: Integrated client input E2Es
+        shell: bash
+        run: bash .ci/client-world-e2e.sh 300
       - name: Verify new production classes are packaged
         shell: bash
         run: |
@@ -60,10 +66,19 @@ jobs:
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/client/ClientHudHandler.class'
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/client/ClientInputHandler.class'
           jar tf "$jar_file" | grep -Fqx 'dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
           sha256sum "$jar_file"
-      - name: Upload candidate JAR
+      - name: Upload candidate JAR and logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: offhandcombat-client-feedback-${{ github.sha }}
-          path: build/libs/*.jar
-          if-no-files-found: error
+          path: |
+            build/libs/*.jar
+            client-smoke.log
+            client-world-e2e.log
+            client-air-swing-e2e.log
+            client-interaction-e2e.log
+            client-villager-e2e.log
+            run/**/logs/latest.log
+          if-no-files-found: warn
