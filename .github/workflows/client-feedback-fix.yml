@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
+      - name: Candidate hashes
+        shell: bash
+        run: |
+          sha256sum \
+            src/main/java/dev/nekomario/offhandcombat/client/ClientInputHandler.java \
+            src/main/java/dev/nekomario/offhandcombat/client/ClientHudHandler.java \
+            src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java \
+            src/main/java/dev/nekomario/offhandcombat/network/OffHandCombatNetwork.java \
+            src/test/java/dev/nekomario/offhandcombat/attachment/OffhandCombatStateTest.java
       - name: Ensure virtual display
         shell: bash
         run: |
@@ -33,15 +42,8 @@ jobs:
           if command -v xvfb-run >/dev/null 2>&1; then
             exit 0
           fi
-          if command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --needed --noconfirm xorg-server-xvfb
-          elif command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y xvfb
-          else
-            echo 'No supported package manager for xvfb-run' >&2
-            exit 1
-          fi
+          sudo apt-get update
+          sudo apt-get install -y xvfb
       - name: Unit tests and build
         shell: bash
         run: gradle --no-daemon clean test build --stacktrace
