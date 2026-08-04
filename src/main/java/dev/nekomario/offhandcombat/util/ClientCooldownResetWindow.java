@@ -4,7 +4,7 @@ public final class ClientCooldownResetWindow {
     private long lastSequence;
 
     public boolean mark(long sequence) {
-        if (sequence <= 0L || sequence == lastSequence) {
+        if (sequence <= 0L || sequence <= lastSequence) {
             return false;
         }
         lastSequence = sequence;
