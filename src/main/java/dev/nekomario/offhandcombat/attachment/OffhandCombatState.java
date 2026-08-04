@@ -1,6 +1,7 @@
 package dev.nekomario.offhandcombat.attachment;
 
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
+import dev.nekomario.offhandcombat.util.ClientCooldownResetWindow;
 import dev.nekomario.offhandcombat.util.SequenceWindow;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
 import net.minecraft.world.item.ItemStack;
@@ -10,9 +11,9 @@ public final class OffhandCombatState {
     private int offhandAttackStrengthTicker;
     private long lastAcceptedRequestTick = Long.MIN_VALUE;
     private final SequenceWindow networkSequences = new SequenceWindow();
+    private final ClientCooldownResetWindow clientCooldownResets = new ClientCooldownResetWindow();
     private long nextClientSequence = 1L;
     private long nextApiSequence = 1L;
-    private long lastClientCooldownResetSequence;
     private ItemStack previousOffhand = ItemStack.EMPTY;
     private boolean attackingWithOffhand;
     private @Nullable AttributeMap activeOffhandAttributes;
@@ -68,16 +69,12 @@ public final class OffhandCombatState {
     }
 
     public boolean markClientCooldownReset(long sequence) {
-        if (sequence <= 0L || sequence == lastClientCooldownResetSequence) {
-            return false;
-        }
-        lastClientCooldownResetSequence = sequence;
-        return true;
+        return clientCooldownResets.mark(sequence);
     }
 
     public void copyClientDimensionStateFrom(OffhandCombatState source) {
         nextClientSequence = source.nextClientSequence;
-        lastClientCooldownResetSequence = source.lastClientCooldownResetSequence;
+        clientCooldownResets.copyFrom(source.clientCooldownResets);
         lastClientResult = source.lastClientResult;
     }
 
