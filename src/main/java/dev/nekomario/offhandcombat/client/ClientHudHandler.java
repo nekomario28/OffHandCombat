@@ -16,7 +16,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 
-@EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientHudHandler {
     private static final ResourceLocation HOTBAR_BACKGROUND = ResourceLocation.fromNamespaceAndPath(
             "minecraft", "hud/hotbar_attack_indicator_background");
