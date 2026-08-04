@@ -12,6 +12,7 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 - [x] **A** Dedicated server reaches `Done` without client-class loading or Mixin failure.
 - [x] **G** GameTest Server discovers and passes ten required off-hand combat tests.
 - [x] **G** A real client right-click/use-key action crosses the custom-payload channel to the integrated server and produces exactly one damage/durability result.
+- [x] **G** A real client right-click on a true empty-air `MISS` plays the OFF_HAND swing while sequence, durability, authoritative result and cooldown remain unchanged.
 - [x] **G** Two separate Xvfb client processes connect through vanilla `ConnectScreen` to one separately launched Dedicated Server; each performs an independent sequence-1 right-click/use-key attack and duplicate replay without a second effect.
 - [x] **G** One physical Xvfb client completes an actual disconnect/reconnect, death/respawn and Overworld-to-Nether transition against a separate Dedicated Server while replay and durability state follow the lifecycle contract.
 - [x] **G** A physical Xvfb client and separate Dedicated Server complete invalid-sequence, duplicate-flood, reordered-sequence and unique-sequence burst trials over loopback with `netem` delay `120ms ± 20ms`; execution remains exactly once and recovers after the burst.
@@ -40,10 +41,13 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 
 - [x] **A** Vanilla-style full cooldown ticks are calculated from attack speed.
 - [x] **A** Invalid attack speed produces zero readiness/cap.
+- [x] **A** A client cooldown reset sequence is applied once; duplicate SUCCESS replay cannot restart the bar.
 - [x] **G** main → off applies the configured opposite-hand cap once using off-hand attack speed.
 - [x] **G** off → main applies the configured opposite-hand cap once using main-hand attack speed.
+- [x] **G** A unique authoritative SUCCESS resets the client off-hand cooldown ticker; duplicate cached results retain the same reset anchor across dimension clone.
 - [x] **G** Two same-tick use-key input-path requests are emitted through the production client sender; the first executes once, the second returns `RATE_LIMITED`, and health/durability remain synchronized.
 - [x] **G** swapping the off-hand stack resets off-hand readiness while an unchanged stack continues charging.
+- [x] **A** The off-hand cooldown HUD uses Minecraft's configured HOTBAR or CROSSHAIR indicator position, hides when the setting is OFF and is absent when the server has no Off Hand Combat channel.
 
 ## Attribution and exactly-once effects
 
@@ -62,9 +66,10 @@ Legend: **A** automated in CI, **G** GameTest/integration automation, **R** rese
 ## Input priority
 
 - [x] **A** the client config defaults to `USE_KEY_ALWAYS`, making right-click the standard off-hand attack input.
-- [x] **G** the right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent.
+- [x] **G** the right-click mode converts only the `OFF_HAND` pass and cancels only when an off-hand request is sent or a true empty-air off-hand swing starts.
 - [x] **A** no dedicated off-hand attack key is registered.
 - [x] **G** a right-click/use-key action produces no request, result, damage or durability change while a Screen is open.
+- [x] **G** a true empty-air `MISS` produces an OFF_HAND animation without a request, result, durability use or cooldown reset.
 - [x] **G** shield priority.
 - [x] **G** bow use priority.
 - [ ] **M** crossbow and trident use.
