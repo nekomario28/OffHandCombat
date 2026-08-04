@@ -52,13 +52,15 @@ for required in [
     "java-version: '21'",
     "gradle-version: '9.2.1'",
     'python3 validate_port.py',
-    'gradle --no-daemon clean test build',
+    'gradle --no-daemon clean test compileClientTestJava build',
     '10 tests are now running',
     '10 GAME TESTS COMPLETE',
     'All 10 required tests passed :)',
-    'bash .ci/client-world-e2e.sh 240',
+    'bash .ci/client-world-e2e.sh 300',
     'bash .ci/remote-multiplayer-e2e.sh 420',
     'Two remote clients against a separate dedicated server',
+    'client-air-swing-e2e.log',
+    'dev/nekomario/offhandcombat/client/ClientHudHandler.class',
     "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
     "grep -Fq 'dev/nekomario/offhandcombat/remotetest/'",
@@ -109,6 +111,9 @@ for required in [
     "systemProperty 'offhandcombat.remoteClientE2E', 'true'",
     "systemProperty 'offhandcombat.remoteClientRole', 'A'",
     "systemProperty 'offhandcombat.remoteClientRole', 'B'",
+    'clientAirSwingE2E {',
+    "systemProperty 'offhandcombat.airSwingE2E', 'true'",
+    "programArguments = ['--username', 'OHCAirSwing']",
     "jvmArgument '-Xmx1024m'",
     "jvmArgument '-Xmx1536m'",
 ]:
@@ -229,6 +234,12 @@ for pattern, description in {
     'OffhandInputArbitrationRegistry': 'input arbitration API',
     'KeyConflictContext.IN_GAME': 'in-game-only dedicated key context',
     'minecraft.screen != null': 'explicit GUI input suppression',
+    'minecraft.hitResult.getType() != HitResult.Type.MISS': 'true-MISS-only air swing input',
+    'player.swing(InteractionHand.OFF_HAND)': 'vanilla off-hand air swing animation',
+    'registerAboveAll': 'off-hand cooldown GUI layer registration',
+    'offhand_attack_indicator': 'stable off-hand cooldown GUI layer ID',
+    'markClientCooldownReset': 'authoritative client cooldown reset deduplication',
+    'result.status() == OffhandAttackStatus.SUCCESS': 'SUCCESS-only client cooldown reset',
     'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
     'target.level() != player.level()': 'public API foreign-Level target rejection',
     'player.level().getEntity(targetId) != target': 'public API exact Entity identity validation',
@@ -272,6 +283,8 @@ for required in [
 # Final interaction and vanilla-peer release checks
 interaction_script = (ROOT / '.ci/client-interaction-e2e.sh').read_text(encoding='utf-8')
 for required in [
+    'runClientAirSwingE2E',
+    'Off Hand Combat off-hand air swing E2E passed',
     'runClientInteractionE2E',
     'runClientVillagerE2E',
     'Off Hand Combat interaction priority E2E passed: button, door and chest',
@@ -279,6 +292,22 @@ for required in [
 ]:
     if required not in interaction_script:
         errors.append(f'interaction priority E2E script missing required fragment: {required}')
+
+air_swing_e2e_java = (
+    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java'
+).read_text(encoding='utf-8')
+for required in [
+    'BlockHitResult.miss(',
+    'InteractionHand.OFF_HAND',
+    'NeoForge.EVENT_BUS.post(input)',
+    'minecraft.player.swingingArm != InteractionHand.OFF_HAND',
+    'lastNetworkSequence() != baselineServerSequence',
+    'getOffhandItem().getDamageValue() != baselineServerDurability',
+    'empty-air swing lowered client off-hand readiness',
+    'Off Hand Combat off-hand air swing E2E passed',
+]:
+    if required not in air_swing_e2e_java:
+        errors.append(f'air-swing E2E harness missing required fragment: {required}')
 
 villager_e2e_java = (
     ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java'
@@ -308,11 +337,13 @@ if 'entityHitResult.getEntity().getId() != rapidTargetId' in client_e2e_java:
     errors.append('rapid-click E2E still depends on natural crosshair synchronization')
 
 if 'bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"' not in client_e2e_script:
-    errors.append('client E2E release gate does not invoke interaction/villager priority E2E')
+    errors.append('client E2E release gate does not invoke air-swing/interaction/villager priority E2E')
 if (ROOT / '.ci/.interaction-retrigger').exists():
     errors.append('temporary focused interaction marker remains')
 if (ROOT / '.github/workflows/self-hosted-release-gate.yml').exists():
     errors.append('temporary self-hosted placeholder workflow remains')
+if (ROOT / '.github/workflows/client-feedback-fix.yml').exists():
+    errors.append('temporary client-feedback verification workflow remains')
 
 vanilla_client_script = (ROOT / '.ci/vanilla-client-server-e2e.sh').read_text(encoding='utf-8')
 for required in [
