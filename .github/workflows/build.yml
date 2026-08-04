@@ -36,8 +36,10 @@ jobs:
             .ci/vanilla-client-server-e2e.sh \
             build.gradle \
             AUDIT_1.21.1.md \
+            README.md \
             TEST_MATRIX.md \
             docs/PUBLIC_API.md \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java \
@@ -50,7 +52,13 @@ jobs:
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressServerE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressClientE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandVanillaServerClientE2EHarness.java \
+            src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java \
+            src/main/java/dev/nekomario/offhandcombat/client/ClientHudHandler.java \
+            src/main/java/dev/nekomario/offhandcombat/client/ClientInputHandler.java \
             src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
+            src/main/java/dev/nekomario/offhandcombat/network/OffHandCombatNetwork.java \
+            src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java \
+            src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java \
             | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
           sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
@@ -58,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon clean test build --stacktrace 2>&1 | tee build.log
+          gradle --no-daemon clean test compileClientTestJava build --stacktrace 2>&1 | tee build.log
       - name: Dedicated server smoke test
         shell: bash
         run: |
@@ -129,7 +137,7 @@ jobs:
         run: bash .ci/client-smoke.sh 180
       - name: Integrated client world and network E2E
         shell: bash
-        run: bash .ci/client-world-e2e.sh 240
+        run: bash .ci/client-world-e2e.sh 300
       - name: Client-only mod against Mojang vanilla server
         shell: bash
         run: bash .ci/vanilla-server-client-e2e.sh 420
@@ -153,6 +161,8 @@ jobs:
             META-INF/neoforge.mods.toml \
             offhandcombat.mixins.json \
             dev/nekomario/offhandcombat/OffHandCombat.class \
+            dev/nekomario/offhandcombat/client/ClientHudHandler.class \
+            dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class \
             assets/offhandcombat/lang/en_us.json \
             assets/offhandcombat/lang/ja_jp.json \
             offhandcombat.png
@@ -179,6 +189,7 @@ jobs:
             gametest.log
             client-smoke.log
             client-world-e2e.log
+            client-air-swing-e2e.log
             client-interaction-console.log
             client-interaction-e2e.log
             client-villager-e2e.log
