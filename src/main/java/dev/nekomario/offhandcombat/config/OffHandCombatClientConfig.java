@@ -10,7 +10,7 @@ public final class OffHandCombatClientConfig {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
         builder.push("input");
         INPUT_MODE = builder
-                .comment("USE_KEY_ALWAYS is the standard right-click off-hand attack mode. USE_KEY_WHEN_SNEAKING restricts right-click attacks to sneaking for compatibility.")
+                .comment("USE_KEY_ALWAYS preserves the original control scheme: right-click attacks normally, while sneaking bypasses Off Hand Combat for vanilla interaction. USE_KEY_WHEN_SNEAKING keeps the inverse compatibility mode for existing users.")
                 .defineEnum("mode", OffhandInputMode.USE_KEY_ALWAYS);
         builder.pop();
         SPEC = builder.build();
