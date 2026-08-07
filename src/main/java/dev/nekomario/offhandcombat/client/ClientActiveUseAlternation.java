@@ -26,23 +26,28 @@ public final class ClientActiveUseAlternation {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
+        boolean hasChannel = minecraft.getConnection() != null
+                && minecraft.getConnection().hasChannel(OffhandAttackRequestPayload.TYPE);
+        boolean defer = player.getData(OffhandCombatAttachments.COMBAT_STATE)
+                .shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, UPSTREAM_ALTERNATION_WINDOW_TICKS);
+        UseAnim mainAnim = player.getMainHandItem().getUseAnimation();
+        UseAnim offAnim = player.getOffhandItem().getUseAnimation();
+        OffHandCombat.LOGGER.info(
+                "Off Hand Combat alternation probe: defer={}, using={}, channel={}, mainAnim={}, offAnim={}",
+                defer, player.isUsingItem(), hasChannel, mainAnim, offAnim);
+
         if (minecraft.screen != null
                 || minecraft.gameMode == null
-                || minecraft.getConnection() == null
-                || !minecraft.getConnection().hasChannel(OffhandAttackRequestPayload.TYPE)
-                || player.isUsingItem()) {
-            return;
-        }
-        if (!player.getData(OffhandCombatAttachments.COMBAT_STATE)
-                .shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, UPSTREAM_ALTERNATION_WINDOW_TICKS)) {
-            return;
-        }
-        if (player.getMainHandItem().getUseAnimation() == UseAnim.NONE
-                || player.getOffhandItem().getUseAnimation() == UseAnim.NONE) {
+                || !hasChannel
+                || player.isUsingItem()
+                || !defer
+                || mainAnim == UseAnim.NONE
+                || offAnim == UseAnim.NONE) {
             return;
         }
 
         InteractionResult offhandResult = minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND);
+        OffHandCombat.LOGGER.info("Off Hand Combat alternation result: {}", offhandResult);
         if (offhandResult.consumesAction()) {
             event.setCancellationResult(offhandResult);
             event.setCanceled(true);
