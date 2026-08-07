@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatState;
+import dev.nekomario.offhandcombat.combat.OffhandWeaponRules;
 import dev.nekomario.offhandcombat.config.OffHandCombatConfig;
 import dev.nekomario.offhandcombat.util.CooldownMath;
 import net.minecraft.core.Holder;
@@ -62,12 +63,16 @@ public abstract class PlayerMixin extends LivingEntity implements OffhandAttackA
         double fraction = OffHandCombatConfig.OPPOSITE_HAND_COOLDOWN.getAsDouble();
         if (state.attackingWithOffhand()) {
             state.setOffhandAttackStrengthTicker(0);
-            this.attackStrengthTicker = Math.min(this.attackStrengthTicker,
-                    CooldownMath.oppositeHandCap(this.getAttributeValue(Attributes.ATTACK_SPEED), fraction));
+            if (offhandcombat$canSwingMainHand(this.getMainHandItem())) {
+                this.attackStrengthTicker = Math.min(this.attackStrengthTicker,
+                        CooldownMath.oppositeHandCap(this.getAttributeValue(Attributes.ATTACK_SPEED), fraction));
+            }
         } else {
             original.call(player);
-            state.setOffhandAttackStrengthTicker(Math.min(state.offhandAttackStrengthTicker(),
-                    CooldownMath.oppositeHandCap(ofc$getOffhandAttributeValue(Attributes.ATTACK_SPEED), fraction)));
+            if (OffhandWeaponRules.evaluate(player, this.getOffhandItem()).eligible()) {
+                state.setOffhandAttackStrengthTicker(Math.min(state.offhandAttackStrengthTicker(),
+                        CooldownMath.oppositeHandCap(ofc$getOffhandAttributeValue(Attributes.ATTACK_SPEED), fraction)));
+            }
         }
     }
 
@@ -129,6 +134,23 @@ public abstract class PlayerMixin extends LivingEntity implements OffhandAttackA
         }
     }
 
+    @Override
+    public void ofc$applySwingCooldown(InteractionHand hand) {
+        Player player = (Player) (Object) this;
+        OffhandCombatState state = offhandcombat$state();
+        double fraction = OffHandCombatConfig.OPPOSITE_HAND_COOLDOWN.getAsDouble();
+        if (hand == InteractionHand.OFF_HAND) {
+            state.setOffhandAttackStrengthTicker(0);
+            if (offhandcombat$canSwingMainHand(this.getMainHandItem())) {
+                this.attackStrengthTicker = Math.min(this.attackStrengthTicker,
+                        CooldownMath.oppositeHandCap(this.getAttributeValue(Attributes.ATTACK_SPEED), fraction));
+            }
+        } else if (OffhandWeaponRules.evaluate(player, this.getOffhandItem()).eligible()) {
+            state.setOffhandAttackStrengthTicker(Math.min(state.offhandAttackStrengthTicker(),
+                    CooldownMath.oppositeHandCap(ofc$getOffhandAttributeValue(Attributes.ATTACK_SPEED), fraction)));
+        }
+    }
+
     @Unique
     private OffhandCombatState offhandcombat$state() {
         return ((Player) (Object) this).getData(OffhandCombatAttachments.COMBAT_STATE);
@@ -141,6 +163,20 @@ public abstract class PlayerMixin extends LivingEntity implements OffhandAttackA
         offhandcombat$swapHandModifiers(copy, this.getMainHandItem(), EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND);
         offhandcombat$swapHandModifiers(copy, this.getOffhandItem(), EquipmentSlot.OFFHAND, EquipmentSlot.MAINHAND);
         return copy;
+    }
+
+    @Unique
+    private static boolean offhandcombat$canSwingMainHand(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        boolean[] hasAttackDamage = {false};
+        stack.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
+            if (attribute.equals(Attributes.ATTACK_DAMAGE)) {
+                hasAttackDamage[0] = true;
+            }
+        });
+        return hasAttackDamage[0];
     }
 
     @Unique
