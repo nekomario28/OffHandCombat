@@ -28,6 +28,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientInputHandler {
+    private static final int UPSTREAM_MISS_COOLDOWN_TICKS = 10;
     private static boolean runtimeReadyLogged;
 
     private ClientInputHandler() {
@@ -63,11 +64,16 @@ public final class ClientInputHandler {
         }
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
-        if (player == null
-                || (OffHandCombatClientConfig.INPUT_MODE.get() == OffhandInputMode.USE_KEY_WHEN_SNEAKING
-                && !player.isCrouching())) {
+        if (player == null) {
             return;
         }
+
+        OffhandInputMode inputMode = OffHandCombatClientConfig.INPUT_MODE.get();
+        if ((inputMode == OffhandInputMode.USE_KEY_ALWAYS && player.isCrouching())
+                || (inputMode == OffhandInputMode.USE_KEY_WHEN_SNEAKING && !player.isCrouching())) {
+            return;
+        }
+
         if (trySendAttack(OffhandInputSource.USE_KEY) || trySwingInAir(OffhandInputSource.USE_KEY)) {
             event.setSwingHand(false);
             event.setCanceled(true);
@@ -114,6 +120,10 @@ public final class ClientInputHandler {
                 || minecraft.hitResult.getType() != HitResult.Type.MISS) {
             return false;
         }
+        OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (state.airSwingMissTicks() > 0) {
+            return false;
+        }
         if (!OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
             return false;
         }
@@ -124,6 +134,9 @@ public final class ClientInputHandler {
         }
 
         player.swing(InteractionHand.OFF_HAND);
+        if (minecraft.gameMode != null && minecraft.gameMode.hasMissTime()) {
+            state.setAirSwingMissTicks(UPSTREAM_MISS_COOLDOWN_TICKS);
+        }
         return true;
     }
 }
