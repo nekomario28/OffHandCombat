@@ -7,6 +7,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,7 +24,15 @@ public abstract class LivingEntityMixin {
         return original;
     }
 
-    @Inject(method = "swing(Lnet/minecraft/world/InteractionHand;Z)V", at = @At("HEAD"))
+    @Inject(
+            method = "swing(Lnet/minecraft/world/InteractionHand;Z)V",
+            at = @At(
+                    value = "FIELD",
+                    target = "Lnet/minecraft/world/entity/LivingEntity;swinging:Z",
+                    opcode = Opcodes.GETFIELD,
+                    ordinal = 0
+            )
+    )
     private void offhandcombat$applySwingCooldown(InteractionHand hand, boolean updateSelf, CallbackInfo ci) {
         if ((Object) this instanceof Player player) {
             ((OffhandAttackAccess) player).ofc$applySwingCooldown(hand);
