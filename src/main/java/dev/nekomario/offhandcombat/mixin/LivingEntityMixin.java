@@ -2,6 +2,7 @@ package dev.nekomario.offhandcombat.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
+import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -26,6 +27,15 @@ public abstract class LivingEntityMixin {
     private void offhandcombat$applySwingCooldown(InteractionHand hand, boolean updateSelf, CallbackInfo ci) {
         if ((Object) this instanceof Player player) {
             ((OffhandAttackAccess) player).ofc$applySwingCooldown(hand);
+        }
+    }
+
+    @Inject(method = "stopUsingItem", at = @At("HEAD"))
+    private void offhandcombat$recordStoppedActiveHand(CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self instanceof Player player && self.isUsingItem()) {
+            player.getData(OffhandCombatAttachments.COMBAT_STATE)
+                    .recordActiveUseStopped(self.getUsedItemHand());
         }
     }
 }
