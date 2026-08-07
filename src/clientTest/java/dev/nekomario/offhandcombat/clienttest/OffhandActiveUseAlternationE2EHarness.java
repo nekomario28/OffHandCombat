@@ -25,6 +25,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
     private static final String WORLD_NAME = "AlternationWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 1800;
     private static final int USE_TIMEOUT_TICKS = 100;
+    private static final int PREPARE_SETTLE_TICKS = 5;
     private static final Item[] ITEMS = {
             Items.SHIELD,
             Items.BOW,
@@ -36,6 +37,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
     private static volatile boolean serverObservedOffhandUse;
     private static volatile boolean serverCheckPending;
     private static volatile long baselineServerSequence;
+    private static volatile int firstUseAllowedAtTick;
     private static int itemIndex;
     private static int clientTicks;
     private static int phaseDeadline;
@@ -113,7 +115,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
                     return;
                 }
                 player.setGameMode(GameType.SURVIVAL);
-                player.getInventory().setItem(0, new ItemStack(Items.ARROW, 64));
+                player.getInventory().setItem(1, new ItemStack(Items.ARROW, 64));
                 baselineServerSequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).lastNetworkSequence();
                 itemIndex = 0;
                 phase = Phase.PREPARING_ITEM;
@@ -142,9 +144,10 @@ public final class OffhandActiveUseAlternationE2EHarness {
                 player.stopUsingItem();
                 player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(item));
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(item));
-                player.getInventory().setItem(0, new ItemStack(Items.ARROW, 64));
+                player.getInventory().setItem(1, new ItemStack(Items.ARROW, 64));
                 serverObservedOffhandUse = false;
                 serverCheckPending = false;
+                firstUseAllowedAtTick = clientTicks + PREPARE_SETTLE_TICKS;
                 phaseDeadline = clientTicks + USE_TIMEOUT_TICKS;
                 phase = Phase.WAITING_FOR_ITEM_SYNC;
             } catch (Throwable throwable) {
@@ -159,6 +162,9 @@ public final class OffhandActiveUseAlternationE2EHarness {
             if (clientTicks >= phaseDeadline) {
                 fail("client did not synchronize both hands for " + item);
             }
+            return;
+        }
+        if (clientTicks < firstUseAllowedAtTick) {
             return;
         }
 
