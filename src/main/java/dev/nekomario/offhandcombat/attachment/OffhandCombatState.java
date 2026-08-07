@@ -1,7 +1,6 @@
 package dev.nekomario.offhandcombat.attachment;
 
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
-import dev.nekomario.offhandcombat.util.ClientCooldownResetWindow;
 import dev.nekomario.offhandcombat.util.SequenceWindow;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
 import net.minecraft.world.item.ItemStack;
@@ -9,9 +8,9 @@ import org.jetbrains.annotations.Nullable;
 
 public final class OffhandCombatState {
     private int offhandAttackStrengthTicker;
+    private int airSwingMissTicks;
     private long lastAcceptedRequestTick = Long.MIN_VALUE;
     private final SequenceWindow networkSequences = new SequenceWindow();
-    private final ClientCooldownResetWindow clientCooldownResets = new ClientCooldownResetWindow();
     private long nextClientSequence = 1L;
     private long nextApiSequence = 1L;
     private ItemStack previousOffhand = ItemStack.EMPTY;
@@ -24,6 +23,9 @@ public final class OffhandCombatState {
         if (offhandAttackStrengthTicker < Integer.MAX_VALUE) {
             offhandAttackStrengthTicker++;
         }
+        if (airSwingMissTicks > 0) {
+            airSwingMissTicks--;
+        }
     }
 
     public int offhandAttackStrengthTicker() {
@@ -32,6 +34,14 @@ public final class OffhandCombatState {
 
     public void setOffhandAttackStrengthTicker(int ticks) {
         offhandAttackStrengthTicker = Math.max(0, ticks);
+    }
+
+    public int airSwingMissTicks() {
+        return airSwingMissTicks;
+    }
+
+    public void setAirSwingMissTicks(int ticks) {
+        airSwingMissTicks = Math.max(0, ticks);
     }
 
     public boolean updateOffhandSnapshot(ItemStack current) {
@@ -68,13 +78,8 @@ public final class OffhandCombatState {
         return value;
     }
 
-    public boolean markClientCooldownReset(long sequence) {
-        return clientCooldownResets.mark(sequence);
-    }
-
     public void copyClientDimensionStateFrom(OffhandCombatState source) {
         nextClientSequence = source.nextClientSequence;
-        clientCooldownResets.copyFrom(source.clientCooldownResets);
         lastClientResult = source.lastClientResult;
     }
 
