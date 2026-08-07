@@ -278,6 +278,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
     }
 
     private static void pointAtMiss(Minecraft minecraft) {
+        minecraft.player.setXRot(-90.0F);
         Vec3 view = minecraft.player.getViewVector(1.0F);
         Vec3 point = minecraft.player.getEyePosition().add(view.scale(5.0D));
         minecraft.hitResult = BlockHitResult.miss(point, Direction.getNearest(view), minecraft.player.blockPosition());
