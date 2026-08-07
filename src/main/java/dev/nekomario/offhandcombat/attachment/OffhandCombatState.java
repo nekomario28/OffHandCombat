@@ -29,6 +29,9 @@ public final class OffhandCombatState {
         if (airSwingMissTicks > 0) {
             airSwingMissTicks--;
         }
+    }
+
+    public void tickActiveUseWindow() {
         if (ticksSinceLastActiveUse < Integer.MAX_VALUE) {
             ticksSinceLastActiveUse++;
         }
