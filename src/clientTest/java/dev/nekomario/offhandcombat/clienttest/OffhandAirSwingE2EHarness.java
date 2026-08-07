@@ -132,7 +132,6 @@ public final class OffhandAirSwingE2EHarness {
             return;
         }
 
-        int tickerBefore = access.ofc$getOffhandAttackStrengthTicker();
         minecraft.player.swinging = false;
         minecraft.player.swingTime = 0;
         minecraft.player.swingingArm = InteractionHand.MAIN_HAND;
@@ -159,12 +158,28 @@ public final class OffhandAirSwingE2EHarness {
             fail("empty-air input did not start an off-hand swing");
             return;
         }
-        if (access.ofc$getOffhandAttackStrengthTicker() != tickerBefore) {
-            fail("empty-air swing reset the off-hand attack cooldown");
+        if (access.ofc$getOffhandAttackStrengthTicker() != 0) {
+            fail("empty-air swing did not reset the off-hand cooldown");
             return;
         }
-        if (minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE).lastClientResult() != null) {
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (minecraft.gameMode != null && minecraft.gameMode.hasMissTime() && state.airSwingMissTicks() <= 0) {
+            fail("empty-air swing did not arm the upstream miss throttle");
+            return;
+        }
+        if (state.lastClientResult() != null) {
             fail("empty-air swing produced an attack result");
+            return;
+        }
+
+        InputEvent.InteractionKeyMappingTriggered immediateRepeat = new InputEvent.InteractionKeyMappingTriggered(
+                1,
+                minecraft.options.keyUse,
+                InteractionHand.OFF_HAND
+        );
+        NeoForge.EVENT_BUS.post(immediateRepeat);
+        if (minecraft.gameMode != null && minecraft.gameMode.hasMissTime() && immediateRepeat.isCanceled()) {
+            fail("miss throttle consumed an immediate repeat instead of leaving it to vanilla");
             return;
         }
 
@@ -179,8 +194,9 @@ public final class OffhandAirSwingE2EHarness {
             return;
         }
 
-        if (((OffhandAttackAccess) minecraft.player).ofc$getOffhandAttackStrengthScale(0.0F) < 0.99F) {
-            fail("empty-air swing lowered client off-hand readiness");
+        float clientStrength = ((OffhandAttackAccess) minecraft.player).ofc$getOffhandAttackStrengthScale(0.0F);
+        if (clientStrength <= 0.0F || clientStrength >= 0.99F) {
+            fail("empty-air swing cooldown did not recharge from zero: " + clientStrength);
             return;
         }
         if (minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE).lastClientResult() != null) {
@@ -208,13 +224,18 @@ public final class OffhandAirSwingE2EHarness {
                     return;
                 }
                 if (state.lastNetworkResult() != null) {
-                    fail("empty-air swing created an authoritative result");
+                    fail("empty-air swing created an authoritative attack result");
+                    return;
+                }
+                float serverStrength = ((OffhandAttackAccess) player).ofc$getOffhandAttackStrengthScale(0.0F);
+                if (serverStrength <= 0.0F || serverStrength >= 0.99F) {
+                    fail("server did not observe the off-hand swing cooldown: " + serverStrength);
                     return;
                 }
 
                 phase = Phase.PASSED;
                 OffHandCombat.LOGGER.info(
-                        "Off Hand Combat off-hand air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown unchanged");
+                        "Off Hand Combat upstream air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging");
             } catch (Throwable throwable) {
                 fail("air-swing server verification exception", throwable);
             }
