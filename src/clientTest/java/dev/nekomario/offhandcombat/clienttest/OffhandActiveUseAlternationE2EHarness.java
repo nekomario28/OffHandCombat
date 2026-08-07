@@ -34,6 +34,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile boolean serverObservedOffhandUse;
+    private static volatile boolean serverCheckPending;
     private static volatile long baselineServerSequence;
     private static int itemIndex;
     private static int clientTicks;
@@ -64,7 +65,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
                 case WAITING_FOR_MAIN_USE -> observeMainHandUse(minecraft);
                 case WAITING_FOR_MAIN_STOP -> startAlternatedUse(minecraft);
                 case WAITING_FOR_OFFHAND_USE -> observeOffhandUse(minecraft);
-                case WAITING_FOR_SERVER_OFFHAND -> finishItemAfterServerObservation(minecraft);
+                case WAITING_FOR_SERVER_OFFHAND -> pollServerOffhandUse(minecraft);
                 default -> {
                 }
             }
@@ -143,6 +144,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(item));
                 player.getInventory().setItem(0, new ItemStack(Items.ARROW, 64));
                 serverObservedOffhandUse = false;
+                serverCheckPending = false;
                 phaseDeadline = clientTicks + USE_TIMEOUT_TICKS;
                 phase = Phase.WAITING_FOR_ITEM_SYNC;
             } catch (Throwable throwable) {
@@ -214,34 +216,8 @@ public final class OffhandActiveUseAlternationE2EHarness {
                 fail("recent MAIN_HAND use was not deferred to OFF_HAND for " + ITEMS[itemIndex]);
                 return;
             }
-
+            phaseDeadline = clientTicks + USE_TIMEOUT_TICKS;
             phase = Phase.WAITING_FOR_SERVER_OFFHAND;
-            UUID playerId = minecraft.player.getUUID();
-            Item item = ITEMS[itemIndex];
-            var server = minecraft.getSingleplayerServer();
-            server.execute(() -> {
-                try {
-                    ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-                    if (player == null) {
-                        fail("server player unavailable while observing OFF_HAND use");
-                        return;
-                    }
-                    if (!player.isUsingItem()
-                            || player.getUsedItemHand() != InteractionHand.OFF_HAND
-                            || !player.getUseItem().is(item)) {
-                        fail("server did not observe OFF_HAND active use for " + item);
-                        return;
-                    }
-                    if (player.getData(OffhandCombatAttachments.COMBAT_STATE).lastNetworkSequence()
-                            != baselineServerSequence) {
-                        fail("active-use alternation emitted an Off Hand Combat attack request");
-                        return;
-                    }
-                    serverObservedOffhandUse = true;
-                } catch (Throwable throwable) {
-                    fail("server OFF_HAND observation exception", throwable);
-                }
-            });
             return;
         }
         if (clientTicks >= phaseDeadline) {
@@ -250,10 +226,53 @@ public final class OffhandActiveUseAlternationE2EHarness {
         }
     }
 
-    private static void finishItemAfterServerObservation(Minecraft minecraft) {
-        if (!serverObservedOffhandUse || minecraft.player == null) {
+    private static void pollServerOffhandUse(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             return;
         }
+        if (serverObservedOffhandUse) {
+            finishCurrentItem(minecraft);
+            return;
+        }
+        if (clientTicks >= phaseDeadline) {
+            minecraft.options.keyUse.setDown(false);
+            fail("server did not observe OFF_HAND active use for " + ITEMS[itemIndex]);
+            return;
+        }
+        if (serverCheckPending) {
+            return;
+        }
+
+        serverCheckPending = true;
+        UUID playerId = minecraft.player.getUUID();
+        Item item = ITEMS[itemIndex];
+        var server = minecraft.getSingleplayerServer();
+        server.execute(() -> {
+            try {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                if (player == null) {
+                    fail("server player unavailable while observing OFF_HAND use");
+                    return;
+                }
+                if (player.getData(OffhandCombatAttachments.COMBAT_STATE).lastNetworkSequence()
+                        != baselineServerSequence) {
+                    fail("active-use alternation emitted an Off Hand Combat attack request");
+                    return;
+                }
+                if (player.isUsingItem()
+                        && player.getUsedItemHand() == InteractionHand.OFF_HAND
+                        && player.getUseItem().is(item)) {
+                    serverObservedOffhandUse = true;
+                }
+            } catch (Throwable throwable) {
+                fail("server OFF_HAND observation exception", throwable);
+            } finally {
+                serverCheckPending = false;
+            }
+        });
+    }
+
+    private static void finishCurrentItem(Minecraft minecraft) {
         minecraft.options.keyUse.setDown(false);
         OffHandCombat.LOGGER.info(
                 "Off Hand Combat active-hand alternation E2E passed for {}: MAIN_HAND -> OFF_HAND",
