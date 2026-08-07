@@ -3,7 +3,6 @@ package dev.nekomario.offhandcombat.network;
 import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackRequest;
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
-import dev.nekomario.offhandcombat.api.OffhandAttackStatus;
 import dev.nekomario.offhandcombat.api.OffhandCombatApi;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatState;
@@ -35,12 +34,7 @@ public final class OffHandCombatNetwork {
     }
 
     private static void handleResult(OffhandAttackResultPayload payload, IPayloadContext context) {
-        OffhandAttackResult result = payload.toResult();
         OffhandCombatState state = context.player().getData(OffhandCombatAttachments.COMBAT_STATE);
-        state.setLastClientResult(result);
-        if (result.status() == OffhandAttackStatus.SUCCESS
-                && state.markClientCooldownReset(result.sequence())) {
-            state.setOffhandAttackStrengthTicker(0);
-        }
+        state.setLastClientResult(payload.toResult());
     }
 }

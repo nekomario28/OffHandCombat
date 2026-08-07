@@ -1,0 +1,62 @@
+name: Upstream semantics verification
+
+on:
+  push:
+    branches: [ restore/upstream-semantics ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Ensure Xvfb
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: Compile, unit test and build
+        shell: bash
+        run: gradle --no-daemon clean test compileClientTestJava build --stacktrace
+      - name: GameTests
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 300s gradle --no-daemon runGameTestServer --stacktrace 2>&1 | tee gametest.log
+          grep -Fq '10 GAME TESTS COMPLETE' gametest.log
+          grep -Fq 'All 10 required tests passed :)' gametest.log
+      - name: Physical client startup
+        shell: bash
+        run: bash .ci/client-smoke.sh 180
+      - name: Integrated client and upstream input semantics
+        shell: bash
+        run: bash .ci/client-world-e2e.sh 300
+      - name: Upload focused evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-semantics-${{ github.sha }}
+          path: |
+            build/libs/*.jar
+            gametest.log
+            client-smoke.log
+            client-world-e2e.log
+            client-air-swing-e2e.log
+            client-interaction-e2e.log
+            client-villager-e2e.log
+            run/**/logs/latest.log
+          if-no-files-found: warn

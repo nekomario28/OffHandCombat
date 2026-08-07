@@ -28,6 +28,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientInputHandler {
+    private static final int UPSTREAM_MISS_COOLDOWN_TICKS = 10;
     private static boolean runtimeReadyLogged;
 
     private ClientInputHandler() {
@@ -49,11 +50,8 @@ public final class ClientInputHandler {
                 || oldPlayer.level().dimension().equals(newPlayer.level().dimension())) {
             return;
         }
-
-        OffhandCombatState oldState = oldPlayer.getData(OffhandCombatAttachments.COMBAT_STATE);
-        newPlayer
-                .getData(OffhandCombatAttachments.COMBAT_STATE)
-                .copyClientDimensionStateFrom(oldState);
+        newPlayer.getData(OffhandCombatAttachments.COMBAT_STATE)
+                .copyClientDimensionStateFrom(oldPlayer.getData(OffhandCombatAttachments.COMBAT_STATE));
     }
 
     @SubscribeEvent
@@ -63,11 +61,16 @@ public final class ClientInputHandler {
         }
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
-        if (player == null
-                || (OffHandCombatClientConfig.INPUT_MODE.get() == OffhandInputMode.USE_KEY_WHEN_SNEAKING
-                && !player.isCrouching())) {
+        if (player == null) {
             return;
         }
+
+        OffhandInputMode inputMode = OffHandCombatClientConfig.INPUT_MODE.get();
+        if ((inputMode == OffhandInputMode.USE_KEY_ALWAYS && player.isCrouching())
+                || (inputMode == OffhandInputMode.USE_KEY_WHEN_SNEAKING && !player.isCrouching())) {
+            return;
+        }
+
         if (trySendAttack(OffhandInputSource.USE_KEY) || trySwingInAir(OffhandInputSource.USE_KEY)) {
             event.setSwingHand(false);
             event.setCanceled(true);
@@ -81,10 +84,8 @@ public final class ClientInputHandler {
         if (minecraft.screen != null || player == null || connection == null || player.isUsingItem()) {
             return false;
         }
-        if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)) {
-            return false;
-        }
-        if (!(minecraft.hitResult instanceof EntityHitResult entityHitResult)) {
+        if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)
+                || !(minecraft.hitResult instanceof EntityHitResult entityHitResult)) {
             return false;
         }
         Entity target = entityHitResult.getEntity();
@@ -96,7 +97,6 @@ public final class ClientInputHandler {
         if (decision == OffhandInputArbitrationRule.Decision.DENY) {
             return false;
         }
-
         long sequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).nextClientSequence();
         PacketDistributor.sendToServer(new OffhandAttackRequestPayload(sequence, target.getId()));
         return true;
@@ -114,7 +114,9 @@ public final class ClientInputHandler {
                 || minecraft.hitResult.getType() != HitResult.Type.MISS) {
             return false;
         }
-        if (!OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
+        OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (state.airSwingMissTicks() > 0
+                || !OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
             return false;
         }
         OffhandInputArbitrationRule.Decision decision = OffhandInputArbitrationRegistry.evaluate(
@@ -122,8 +124,10 @@ public final class ClientInputHandler {
         if (decision == OffhandInputArbitrationRule.Decision.DENY) {
             return false;
         }
-
         player.swing(InteractionHand.OFF_HAND);
+        if (minecraft.gameMode != null && minecraft.gameMode.hasMissTime()) {
+            state.setAirSwingMissTicks(UPSTREAM_MISS_COOLDOWN_TICKS);
+        }
         return true;
     }
 }
