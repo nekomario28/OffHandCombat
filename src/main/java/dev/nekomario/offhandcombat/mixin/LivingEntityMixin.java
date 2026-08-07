@@ -39,8 +39,17 @@ public abstract class LivingEntityMixin {
         }
     }
 
+    @Inject(method = "releaseUsingItem", at = @At("HEAD"))
+    private void offhandcombat$recordReleasedActiveHand(CallbackInfo ci) {
+        offhandcombat$recordActiveHand();
+    }
+
     @Inject(method = "stopUsingItem", at = @At("HEAD"))
     private void offhandcombat$recordStoppedActiveHand(CallbackInfo ci) {
+        offhandcombat$recordActiveHand();
+    }
+
+    private void offhandcombat$recordActiveHand() {
         LivingEntity self = (LivingEntity) (Object) this;
         if (self instanceof Player player && self.isUsingItem()) {
             player.getData(OffhandCombatAttachments.COMBAT_STATE)
