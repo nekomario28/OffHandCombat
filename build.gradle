@@ -64,6 +64,13 @@ neoForge {
             programArguments = ['--username', 'OHCAirSwing']
             systemProperty 'offhandcombat.airSwingE2E', 'true'
         }
+        clientActiveUseAlternationE2E {
+            client()
+            gameDirectory = project.file('run')
+            sourceSet = sourceSets.clientTest
+            programArguments = ['--username', 'OHCAlternate']
+            systemProperty 'offhandcombat.activeUseAlternationE2E', 'true'
+        }
         clientInteractionE2E {
             client()
             gameDirectory = project.file('run')
