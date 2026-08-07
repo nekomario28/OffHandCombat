@@ -15,7 +15,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
@@ -29,6 +31,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 @EventBusSubscriber(modid = OffHandCombat.MOD_ID, value = Dist.CLIENT)
 public final class ClientInputHandler {
     private static final int UPSTREAM_MISS_COOLDOWN_TICKS = 10;
+    private static final int UPSTREAM_ACTIVE_USE_WINDOW_TICKS = 3;
     private static boolean runtimeReadyLogged;
 
     private ClientInputHandler() {
@@ -50,21 +53,27 @@ public final class ClientInputHandler {
                 || oldPlayer.level().dimension().equals(newPlayer.level().dimension())) {
             return;
         }
-
-        OffhandCombatState oldState = oldPlayer.getData(OffhandCombatAttachments.COMBAT_STATE);
-        newPlayer
-                .getData(OffhandCombatAttachments.COMBAT_STATE)
-                .copyClientDimensionStateFrom(oldState);
+        newPlayer.getData(OffhandCombatAttachments.COMBAT_STATE)
+                .copyClientDimensionStateFrom(oldPlayer.getData(OffhandCombatAttachments.COMBAT_STATE));
     }
 
     @SubscribeEvent
     public static void onInteractionKey(InputEvent.InteractionKeyMappingTriggered event) {
-        if (!event.isUseItem() || event.getHand() != InteractionHand.OFF_HAND || event.isCanceled()) {
+        if (!event.isUseItem() || event.isCanceled()) {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         if (player == null) {
+            return;
+        }
+
+        if (event.getHand() == InteractionHand.MAIN_HAND && tryAlternateActiveUse(minecraft, player)) {
+            event.setSwingHand(false);
+            event.setCanceled(true);
+            return;
+        }
+        if (event.getHand() != InteractionHand.OFF_HAND) {
             return;
         }
 
@@ -80,6 +89,30 @@ public final class ClientInputHandler {
         }
     }
 
+    private static boolean tryAlternateActiveUse(Minecraft minecraft, LocalPlayer player) {
+        ClientPacketListener connection = minecraft.getConnection();
+        if (minecraft.screen != null
+                || minecraft.gameMode == null
+                || connection == null
+                || !connection.hasChannel(OffhandAttackRequestPayload.TYPE)
+                || player.isUsingItem()
+                || minecraft.hitResult == null
+                || minecraft.hitResult.getType() != HitResult.Type.MISS) {
+            return false;
+        }
+        OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (!state.shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, UPSTREAM_ACTIVE_USE_WINDOW_TICKS)) {
+            return false;
+        }
+        if (player.getMainHandItem().getUseAnimation() == UseAnim.NONE
+                || player.getOffhandItem().getUseAnimation() == UseAnim.NONE) {
+            return false;
+        }
+
+        InteractionResult result = minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND);
+        return result.consumesAction();
+    }
+
     private static boolean trySendAttack(OffhandInputSource inputSource) {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
@@ -87,10 +120,8 @@ public final class ClientInputHandler {
         if (minecraft.screen != null || player == null || connection == null || player.isUsingItem()) {
             return false;
         }
-        if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)) {
-            return false;
-        }
-        if (!(minecraft.hitResult instanceof EntityHitResult entityHitResult)) {
+        if (!connection.hasChannel(OffhandAttackRequestPayload.TYPE)
+                || !(minecraft.hitResult instanceof EntityHitResult entityHitResult)) {
             return false;
         }
         Entity target = entityHitResult.getEntity();
@@ -102,7 +133,6 @@ public final class ClientInputHandler {
         if (decision == OffhandInputArbitrationRule.Decision.DENY) {
             return false;
         }
-
         long sequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).nextClientSequence();
         PacketDistributor.sendToServer(new OffhandAttackRequestPayload(sequence, target.getId()));
         return true;
@@ -121,10 +151,8 @@ public final class ClientInputHandler {
             return false;
         }
         OffhandCombatState state = player.getData(OffhandCombatAttachments.COMBAT_STATE);
-        if (state.airSwingMissTicks() > 0) {
-            return false;
-        }
-        if (!OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
+        if (state.airSwingMissTicks() > 0
+                || !OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
             return false;
         }
         OffhandInputArbitrationRule.Decision decision = OffhandInputArbitrationRegistry.evaluate(
@@ -132,7 +160,6 @@ public final class ClientInputHandler {
         if (decision == OffhandInputArbitrationRule.Decision.DENY) {
             return false;
         }
-
         player.swing(InteractionHand.OFF_HAND);
         if (minecraft.gameMode != null && minecraft.gameMode.hasMissTime()) {
             state.setAirSwingMissTicks(UPSTREAM_MISS_COOLDOWN_TICKS);
