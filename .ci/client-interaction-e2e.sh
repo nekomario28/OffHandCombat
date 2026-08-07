@@ -99,6 +99,18 @@ run_client_e2e \
 grep -F "animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging" client-air-swing-e2e.log
 
 run_client_e2e \
+  AlternationWorld \
+  runClientActiveUseAlternationE2E \
+  client-active-use-alternation-e2e.log \
+  "Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident" \
+  "Off Hand Combat active-hand alternation E2E failed"
+
+grep -F "active-hand alternation E2E passed for minecraft:shield: MAIN_HAND -> OFF_HAND" client-active-use-alternation-e2e.log
+grep -F "active-hand alternation E2E passed for minecraft:bow: MAIN_HAND -> OFF_HAND" client-active-use-alternation-e2e.log
+grep -F "active-hand alternation E2E passed for minecraft:crossbow: MAIN_HAND -> OFF_HAND" client-active-use-alternation-e2e.log
+grep -F "active-hand alternation E2E passed for minecraft:trident: MAIN_HAND -> OFF_HAND" client-active-use-alternation-e2e.log
+
+run_client_e2e \
   InteractionWorld \
   runClientInteractionE2E \
   client-interaction-e2e.log \
