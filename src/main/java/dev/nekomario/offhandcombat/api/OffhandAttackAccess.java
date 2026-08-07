@@ -1,6 +1,7 @@
 package dev.nekomario.offhandcombat.api;
 
 import net.minecraft.core.Holder;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
@@ -19,4 +20,6 @@ public interface OffhandAttackAccess {
     boolean ofc$isAttackingWithOffhand();
 
     void ofc$attackWithOffhand(Entity target);
+
+    void ofc$applySwingCooldown(InteractionHand hand);
 }
