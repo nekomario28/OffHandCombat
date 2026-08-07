@@ -2,6 +2,7 @@ package dev.nekomario.offhandcombat.attachment;
 
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
 import dev.nekomario.offhandcombat.util.SequenceWindow;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -9,6 +10,8 @@ import org.jetbrains.annotations.Nullable;
 public final class OffhandCombatState {
     private int offhandAttackStrengthTicker;
     private int airSwingMissTicks;
+    private int ticksSinceLastActiveUse = Integer.MAX_VALUE;
+    private @Nullable InteractionHand lastActiveUseHand;
     private long lastAcceptedRequestTick = Long.MIN_VALUE;
     private final SequenceWindow networkSequences = new SequenceWindow();
     private long nextClientSequence = 1L;
@@ -26,6 +29,9 @@ public final class OffhandCombatState {
         if (airSwingMissTicks > 0) {
             airSwingMissTicks--;
         }
+        if (ticksSinceLastActiveUse < Integer.MAX_VALUE) {
+            ticksSinceLastActiveUse++;
+        }
     }
 
     public int offhandAttackStrengthTicker() {
@@ -42,6 +48,17 @@ public final class OffhandCombatState {
 
     public void setAirSwingMissTicks(int ticks) {
         airSwingMissTicks = Math.max(0, ticks);
+    }
+
+    public void recordActiveUseStopped(InteractionHand hand) {
+        lastActiveUseHand = hand;
+        ticksSinceLastActiveUse = 0;
+    }
+
+    public boolean shouldDeferRecentlyUsedHand(InteractionHand hand, int windowTicks) {
+        return lastActiveUseHand == hand
+                && ticksSinceLastActiveUse >= 0
+                && ticksSinceLastActiveUse < Math.max(0, windowTicks);
     }
 
     public boolean updateOffhandSnapshot(ItemStack current) {
@@ -81,6 +98,8 @@ public final class OffhandCombatState {
     public void copyClientDimensionStateFrom(OffhandCombatState source) {
         nextClientSequence = source.nextClientSequence;
         lastClientResult = source.lastClientResult;
+        ticksSinceLastActiveUse = source.ticksSinceLastActiveUse;
+        lastActiveUseHand = source.lastActiveUseHand;
     }
 
     public long nextApiSequence() {
