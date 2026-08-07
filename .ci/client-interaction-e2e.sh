@@ -93,10 +93,10 @@ run_client_e2e \
   AirSwingWorld \
   runClientAirSwingE2E \
   client-air-swing-e2e.log \
-  "Off Hand Combat off-hand air swing E2E passed" \
+  "Off Hand Combat upstream air swing E2E passed" \
   "Off Hand Combat off-hand air swing E2E failed"
 
-grep -F "animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown unchanged" client-air-swing-e2e.log
+grep -F "animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging" client-air-swing-e2e.log
 
 run_client_e2e \
   InteractionWorld \
