@@ -3,6 +3,8 @@ name: Upstream semantics verification
 on:
   push:
     branches: [ restore/upstream-semantics ]
+  pull_request:
+    branches: [ master ]
 
 permissions:
   contents: read
