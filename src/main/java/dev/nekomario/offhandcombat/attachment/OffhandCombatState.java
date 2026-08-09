@@ -1,6 +1,7 @@
 package dev.nekomario.offhandcombat.attachment;
 
 import dev.nekomario.offhandcombat.api.OffhandAttackResult;
+import dev.nekomario.offhandcombat.util.ActiveUseWindow;
 import dev.nekomario.offhandcombat.util.SequenceWindow;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;
@@ -32,9 +33,7 @@ public final class OffhandCombatState {
     }
 
     public void tickActiveUseWindow() {
-        if (ticksSinceLastActiveUse < Integer.MAX_VALUE) {
-            ticksSinceLastActiveUse++;
-        }
+        ticksSinceLastActiveUse = ActiveUseWindow.advance(ticksSinceLastActiveUse);
     }
 
     public int offhandAttackStrengthTicker() {
@@ -60,8 +59,7 @@ public final class OffhandCombatState {
 
     public boolean shouldDeferRecentlyUsedHand(InteractionHand hand, int windowTicks) {
         return lastActiveUseHand == hand
-                && ticksSinceLastActiveUse >= 0
-                && ticksSinceLastActiveUse < Math.max(0, windowTicks);
+                && ActiveUseWindow.isOpen(ticksSinceLastActiveUse, windowTicks);
     }
 
     public boolean updateOffhandSnapshot(ItemStack current) {
