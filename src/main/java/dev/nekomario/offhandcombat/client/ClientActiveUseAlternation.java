@@ -32,7 +32,7 @@ public final class ClientActiveUseAlternation {
                 .shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, UPSTREAM_ALTERNATION_WINDOW_TICKS);
         UseAnim mainAnim = player.getMainHandItem().getUseAnimation();
         UseAnim offAnim = player.getOffhandItem().getUseAnimation();
-        OffHandCombat.LOGGER.info(
+        OffHandCombat.LOGGER.debug(
                 "Off Hand Combat alternation probe: defer={}, using={}, channel={}, mainAnim={}, offAnim={}",
                 defer, player.isUsingItem(), hasChannel, mainAnim, offAnim);
 
@@ -47,7 +47,7 @@ public final class ClientActiveUseAlternation {
         }
 
         InteractionResult offhandResult = minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND);
-        OffHandCombat.LOGGER.info("Off Hand Combat alternation result: {}", offhandResult);
+        OffHandCombat.LOGGER.debug("Off Hand Combat alternation result: {}", offhandResult);
         if (offhandResult.consumesAction()) {
             event.setCancellationResult(offhandResult);
             event.setCanceled(true);
