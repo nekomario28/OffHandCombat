@@ -39,6 +39,7 @@ jobs:
             README.md \
             TEST_MATRIX.md \
             docs/PUBLIC_API.md \
+            src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandActiveUseAlternationE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java \
             src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandInteractionPriorityE2EHarness.java \
@@ -52,13 +53,16 @@ jobs:
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressServerE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandNetworkStressClientE2EHarness.java \
             src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandVanillaServerClientE2EHarness.java \
+            src/main/java/dev/nekomario/offhandcombat/api/OffhandAttackAccess.java \
             src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java \
+            src/main/java/dev/nekomario/offhandcombat/client/ClientActiveUseAlternation.java \
             src/main/java/dev/nekomario/offhandcombat/client/ClientHudHandler.java \
             src/main/java/dev/nekomario/offhandcombat/client/ClientInputHandler.java \
             src/main/java/dev/nekomario/offhandcombat/combat/OffhandAttackService.java \
+            src/main/java/dev/nekomario/offhandcombat/config/OffHandCombatClientConfig.java \
+            src/main/java/dev/nekomario/offhandcombat/mixin/LivingEntityMixin.java \
+            src/main/java/dev/nekomario/offhandcombat/mixin/PlayerMixin.java \
             src/main/java/dev/nekomario/offhandcombat/network/OffHandCombatNetwork.java \
-            src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java \
-            src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java \
             | tee static-audit.log
           python3 validate_port.py 2>&1 | tee -a static-audit.log
           sha256sum --check PORT_MANIFEST.sha256 2>&1 | tee -a static-audit.log
@@ -161,8 +165,8 @@ jobs:
             META-INF/neoforge.mods.toml \
             offhandcombat.mixins.json \
             dev/nekomario/offhandcombat/OffHandCombat.class \
+            dev/nekomario/offhandcombat/client/ClientActiveUseAlternation.class \
             dev/nekomario/offhandcombat/client/ClientHudHandler.class \
-            dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class \
             assets/offhandcombat/lang/en_us.json \
             assets/offhandcombat/lang/ja_jp.json \
             offhandcombat.png
@@ -173,6 +177,7 @@ jobs:
           ! jar tf "$jar_file" | grep -Fq 'data/offhandcombat/structure/gametest/'
           ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/clienttest/'
           ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/remotetest/'
+          ! jar tf "$jar_file" | grep -Fq 'dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class'
           unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="bettercombat"'
           unzip -p "$jar_file" META-INF/neoforge.mods.toml | grep -Fq 'modId="combatify"'
           sha256sum "$jar_file"
@@ -190,6 +195,7 @@ jobs:
             client-smoke.log
             client-world-e2e.log
             client-air-swing-e2e.log
+            client-active-use-alternation-e2e.log
             client-interaction-console.log
             client-interaction-e2e.log
             client-villager-e2e.log
