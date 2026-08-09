@@ -34,6 +34,9 @@ jobs:
         run: |
           set -euo pipefail
           git ls-files -z | xargs -0 sha256sum | sort -k2 | tee full-manifest.sha256
+      - name: Static restored-semantics validation
+        shell: bash
+        run: python3 validate_port.py
       - name: Compile, unit test and build
         shell: bash
         run: gradle --no-daemon clean test compileClientTestJava build --stacktrace
@@ -62,6 +65,7 @@ jobs:
             client-smoke.log
             client-world-e2e.log
             client-air-swing-e2e.log
+            client-active-use-alternation-e2e.log
             client-interaction-e2e.log
             client-villager-e2e.log
             run/**/logs/latest.log
