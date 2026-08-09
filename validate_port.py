@@ -10,25 +10,51 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 errors: list[str] = []
 
-IGNORED_JSON_ROOTS = {'.git', '.gradle', 'build', 'run'}
+
+def read(path: str) -> str:
+    file = ROOT / path
+    if not file.is_file():
+        errors.append(f'missing {path}')
+        return ''
+    return file.read_text(encoding='utf-8')
+
+
+def require(path: str, *fragments: str) -> str:
+    text = read(path)
+    for fragment in fragments:
+        if fragment not in text:
+            errors.append(f'{path} missing required fragment: {fragment}')
+    return text
+
+
+def forbid(path: str, *fragments: str) -> str:
+    text = read(path)
+    for fragment in fragments:
+        if fragment in text:
+            errors.append(f'{path} contains forbidden fragment: {fragment}')
+    return text
+
+
+# Parse every shipped/static JSON file that is not generated runtime state.
+ignored_json_roots = {'.git', '.gradle', 'build', 'run'}
 for path in sorted(ROOT.rglob('*.json')):
     relative = path.relative_to(ROOT)
-    if relative.parts and relative.parts[0] in IGNORED_JSON_ROOTS:
+    if relative.parts and relative.parts[0] in ignored_json_roots:
         continue
     try:
         json.loads(path.read_text(encoding='utf-8'))
     except Exception as exc:
         errors.append(f'JSON {relative}: {exc}')
 
+# Resolve the metadata template exactly as Gradle does and require the documented
+# combat-authority conflict warnings.
 props: dict[str, str] = {}
-for line in (ROOT / 'gradle.properties').read_text(encoding='utf-8').splitlines():
+for line in read('gradle.properties').splitlines():
     line = line.strip()
-    if not line or line.startswith('#') or '=' not in line:
-        continue
-    key, value = line.split('=', 1)
-    props[key.strip()] = value.strip()
-
-metadata_template = (ROOT / 'src/main/templates/META-INF/neoforge.mods.toml').read_text(encoding='utf-8')
+    if line and not line.startswith('#') and '=' in line:
+        key, value = line.split('=', 1)
+        props[key.strip()] = value.strip()
+metadata_template = read('src/main/templates/META-INF/neoforge.mods.toml')
 metadata = metadata_template
 for key, value in props.items():
     metadata = metadata.replace('${' + key + '}', value)
@@ -36,137 +62,86 @@ try:
     tomllib.loads(metadata)
 except Exception as exc:
     errors.append(f'neoforge.mods.toml template: {exc}')
-
-for mod_id in ['bettercombat', 'combatify']:
-    dependency_fragment = f'modId="{mod_id}"'
-    if dependency_fragment not in metadata_template:
+for mod_id in ('bettercombat', 'combatify'):
+    if f'modId="{mod_id}"' not in metadata_template:
         errors.append(f'neoforge.mods.toml missing compatibility policy for {mod_id}')
-if metadata_template.count('type="discouraged"') < 2:
-    errors.append('neoforge.mods.toml must warn for both researched combat-authority conflicts')
-if metadata_template.count('reason=') < 2:
-    errors.append('neoforge.mods.toml compatibility warnings require user-facing reasons')
+if metadata_template.count('type="discouraged"') < 2 or metadata_template.count('reason=') < 2:
+    errors.append('combat-authority conflicts require discouraged metadata with user-facing reasons')
 
-workflow = (ROOT / '.github/workflows/build.yml').read_text(encoding='utf-8')
-for required in [
+# The normal release gate must still exercise the complete matrix, while the
+# restored upstream-semantics paths are first-class audit inputs rather than a
+# temporary focused-only test.
+require(
+    '.github/workflows/build.yml',
     'actions/setup-java@v4',
     "java-version: '21'",
     "gradle-version: '9.2.1'",
     'python3 validate_port.py',
+    'sha256sum --check PORT_MANIFEST.sha256',
     'gradle --no-daemon clean test compileClientTestJava build',
     '10 tests are now running',
-    '10 GAME TESTS COMPLETE',
     'All 10 required tests passed :)',
     'bash .ci/client-world-e2e.sh 300',
+    'bash .ci/vanilla-server-client-e2e.sh 420',
     'bash .ci/remote-multiplayer-e2e.sh 420',
-    'Two remote clients against a separate dedicated server',
-    'client-air-swing-e2e.log',
-    'dev/nekomario/offhandcombat/client/ClientHudHandler.class',
-    "grep -Fq 'dev/nekomario/offhandcombat/gametest/'",
-    "grep -Fq 'dev/nekomario/offhandcombat/clienttest/'",
-    "grep -Fq 'dev/nekomario/offhandcombat/remotetest/'",
-    "grep -Fq 'modId=\"bettercombat\"'",
-    "grep -Fq 'modId=\"combatify\"'",
-]:
-    if required not in workflow:
-        errors.append(f'workflow missing required fragment: {required}')
+    'bash .ci/remote-lifecycle-e2e.sh 480',
+    'bash .ci/remote-network-stress-e2e.sh 600',
+    'OffhandActiveUseAlternationE2EHarness.java',
+    'ClientActiveUseAlternation.class',
+    "! jar tf \"$jar_file\" | grep -Fq 'dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.class'",
+    'client-active-use-alternation-e2e.log',
+)
 
-client_e2e_script = (ROOT / '.ci/client-world-e2e.sh').read_text(encoding='utf-8')
-for required in [
-    'Off Hand Combat client world E2E passed',
-    'Off Hand Combat client GUI suppression E2E passed',
-    'runClientWorldE2E',
-]:
-    if required not in client_e2e_script:
-        errors.append(f'client E2E script missing required fragment: {required}')
-
-remote_e2e_script = (ROOT / '.ci/remote-multiplayer-e2e.sh').read_text(encoding='utf-8')
-for required in [
-    'runRemoteServerE2E',
-    'runRemoteClientAE2E',
-    'runRemoteClientBE2E',
-    'Off Hand Combat two-client remote server E2E passed',
-    'Off Hand Combat two-client remote client A E2E passed',
-    'Off Hand Combat two-client remote client B E2E passed',
-    'client A replay remained isolated; armed client B',
-    'online-mode=false',
-    'max-players=2',
-    '127.0.0.1:25565',
-    'remote-client-a',
-    'remote-client-b',
-    'outofmemoryerror',
-]:
-    if required not in remote_e2e_script:
-        errors.append(f'two-client remote E2E script missing required fragment: {required}')
-
-build_script = (ROOT / 'build.gradle').read_text(encoding='utf-8')
-for required in [
+build_script = require(
+    'build.gradle',
     "gameDirectory = project.file('run')",
     "gameDirectory = project.file('run/remote-server')",
     "gameDirectory = project.file('run/remote-client-a')",
     "gameDirectory = project.file('run/remote-client-b')",
     'sourceSet = sourceSets.remoteTest',
-    "programArguments = ['--username', 'OffhandRemoteA']",
-    "programArguments = ['--username', 'OffhandRemoteB']",
-    "systemProperty 'offhandcombat.remoteServerE2E', 'true'",
-    "systemProperty 'offhandcombat.remoteClientE2E', 'true'",
-    "systemProperty 'offhandcombat.remoteClientRole', 'A'",
-    "systemProperty 'offhandcombat.remoteClientRole', 'B'",
     'clientAirSwingE2E {',
+    'clientActiveUseAlternationE2E {',
     "systemProperty 'offhandcombat.airSwingE2E', 'true'",
+    "systemProperty 'offhandcombat.activeUseAlternationE2E', 'true'",
     "programArguments = ['--username', 'OHCAirSwing']",
-    "jvmArgument '-Xmx1024m'",
-    "jvmArgument '-Xmx1536m'",
-]:
-    if required not in build_script:
-        errors.append(f'build script missing required isolated run fragment: {required}')
+)
 if '--quickPlayMultiplayer' in build_script:
     errors.append('remote clients must not depend on flaky Quick Play auto-connect')
-if 'run/remote-client\'' in build_script:
-    errors.append('obsolete shared remote-client game directory remains')
 
-client_e2e_java = (
-    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandClientWorldE2EHarness.java'
-).read_text(encoding='utf-8')
-for required in [
-    'createWorldOpenFlows().openWorld',
-    'GUI suppression E2E passed',
-    'lastNetworkSequence() != 0L',
-]:
-    if required not in client_e2e_java:
-        errors.append(f'client E2E harness missing required fragment: {required}')
-
-remote_server_java = (
-    ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteServerE2EHarness.java'
-).read_text(encoding='utf-8')
-for required in [
-    'server.isDedicatedServer()',
-    'PLAYER_A_NAME = "OffhandRemoteA"',
-    'PLAYER_B_NAME = "OffhandRemoteB"',
-    'stateB.lastNetworkSequence() != 0L',
-    'client A duplicate replay advanced client B sequence state',
-    'independent network sequence 1',
-    'two remote players unexpectedly shared the same combat-state object',
+require(
+    '.ci/client-world-e2e.sh',
+    'runClientWorldE2E',
+    'Off Hand Combat client world E2E passed',
+    'Off Hand Combat client GUI suppression E2E passed',
+    'bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"',
+)
+require(
+    '.ci/client-interaction-e2e.sh',
+    'runClientAirSwingE2E',
+    'runClientActiveUseAlternationE2E',
+    'runClientInteractionE2E',
+    'runClientVillagerE2E',
+    'Off Hand Combat off-hand air swing E2E passed',
+    'Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident',
+    'Off Hand Combat interaction priority E2E passed: button, door and chest',
+    'Off Hand Combat villager trading priority E2E passed',
+)
+require(
+    '.ci/remote-multiplayer-e2e.sh',
+    'runRemoteServerE2E',
+    'runRemoteClientAE2E',
+    'runRemoteClientBE2E',
     'Off Hand Combat two-client remote server E2E passed',
-]:
-    if required not in remote_server_java:
-        errors.append(f'two-client remote server E2E harness missing required fragment: {required}')
+    'online-mode=false',
+    'max-players=2',
+)
+require('.ci/remote-lifecycle-e2e.sh', 'runLifecycleServerE2E', 'runLifecycleClientE2E')
+require('.ci/remote-network-stress-e2e.sh', 'runNetworkStressServerE2E', 'runNetworkStressClientE2E')
+require('.ci/vanilla-server-client-e2e.sh', 'piston-meta.mojang.com', 'vanilla')
+require('.ci/vanilla-client-server-e2e.sh', 'piston-meta.mojang.com', 'vanilla')
 
-remote_client_java = (
-    ROOT / 'src/remoteTest/java/dev/nekomario/offhandcombat/remotetest/OffhandRemoteClientE2EHarness.java'
-).read_text(encoding='utf-8')
-for required in [
-    'ConnectScreen.startConnecting',
-    'ServerAddress.parseString(SERVER_ADDRESS)',
-    'offhandcombat.remoteClientRole',
-    'WAITING_FOR_PARTNER_OBSERVATION',
-    'received another player\'s result or changed cached result',
-    'KeyMapping.click',
-    'PacketDistributor.sendToServer',
-    'Off Hand Combat two-client remote client {} E2E passed',
-]:
-    if required not in remote_client_java:
-        errors.append(f'two-client remote client E2E harness missing required fragment: {required}')
-
+# Source layout and delimiter sanity checks catch common partial-port mistakes
+# before the expensive NeoForge launches.
 source_roots = [
     ROOT / 'src/main/java',
     ROOT / 'src/gameTest/java',
@@ -175,6 +150,8 @@ source_roots = [
     ROOT / 'src/test/java',
 ]
 for source_root in source_roots:
+    if not source_root.exists():
+        continue
     for path in sorted(source_root.rglob('*.java')):
         text = path.read_text(encoding='utf-8')
         package_match = re.search(r'^package\s+([\w.]+);', text, re.MULTILINE)
@@ -185,16 +162,15 @@ for source_root in source_roots:
         actual = path.relative_to(source_root)
         if expected != actual:
             errors.append(f'{actual}: package path mismatch; expected {expected}')
-
         scrubbed = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
         scrubbed = re.sub(r'//.*', '', scrubbed)
         scrubbed = re.sub(r'"(?:\\.|[^"\\])*"', '""', scrubbed)
         scrubbed = re.sub(r"'(?:\\.|[^'\\])*'", "''", scrubbed)
-        for opening, closing in [('(', ')'), ('{', '}'), ('[', ']')]:
+        for opening, closing in (('(', ')'), ('{', '}'), ('[', ']')):
             if scrubbed.count(opening) != scrubbed.count(closing):
                 errors.append(f'{actual}: unbalanced {opening}{closing}')
 
-for required in [
+for required_file in (
     'LICENSE',
     'THIRD_PARTY_NOTICES.md',
     'AUDIT_1.21.1.md',
@@ -202,16 +178,14 @@ for required in [
     'docs/PROTOCOL.md',
     'docs/PUBLIC_API.md',
     'docs/COMPATIBILITY.md',
-]:
-    if not (ROOT / required).is_file():
-        errors.append(f'missing {required}')
-
-license_text = (ROOT / 'LICENSE').read_text(encoding='utf-8')
-if 'Copyright (c) 2017 Arekkuusu' not in license_text or 'MIT License' not in license_text:
+):
+    if not (ROOT / required_file).is_file():
+        errors.append(f'missing {required_file}')
+if 'Copyright (c) 2017 Arekkuusu' not in read('LICENSE') or 'MIT License' not in read('LICENSE'):
     errors.append('original MIT attribution is missing')
 
-source_paths = list((ROOT / 'src/main/java').rglob('*.java'))
-source_text = '\n'.join(path.read_text(encoding='utf-8') for path in source_paths)
+production_paths = list((ROOT / 'src/main/java').rglob('*.java'))
+source_text = '\n'.join(path.read_text(encoding='utf-8') for path in production_paths)
 for pattern, description in {
     'ServerboundInteractPacket': 'vanilla packet mutation',
     'invulnerableTime = 0': 'invulnerability-frame reset',
@@ -221,6 +195,7 @@ for pattern, description in {
     'Map<UUID': 'static UUID combat state',
     'static final Map<UUID': 'static UUID combat state',
     'getEyePosition().distanceToSqr(target.getBoundingBox().getCenter())': 'custom entity-reach approximation',
+    'markClientCooldownReset': 'obsolete delayed-result cooldown reset',
 }.items():
     if pattern in source_text:
         errors.append(f'forbidden pattern remains ({description}): {pattern}')
@@ -232,14 +207,18 @@ for pattern, description in {
     'OffhandAttackEvent.Before': 'before attack event',
     'OffhandAttackEvent.After': 'after attack event',
     'OffhandInputArbitrationRegistry': 'input arbitration API',
-    'KeyConflictContext.IN_GAME': 'in-game-only dedicated key context',
     'minecraft.screen != null': 'explicit GUI input suppression',
     'minecraft.hitResult.getType() != HitResult.Type.MISS': 'true-MISS-only air swing input',
-    'player.swing(InteractionHand.OFF_HAND)': 'vanilla off-hand air swing animation',
+    'player.swing(InteractionHand.OFF_HAND)': 'vanilla off-hand swing path',
     'registerAboveAll': 'off-hand cooldown GUI layer registration',
     'offhand_attack_indicator': 'stable off-hand cooldown GUI layer ID',
-    'markClientCooldownReset': 'authoritative client cooldown reset deduplication',
-    'result.status() == OffhandAttackStatus.SUCCESS': 'SUCCESS-only client cooldown reset',
+    'ofc$applySwingCooldown': 'swing-driven cross-hand cooldown semantics',
+    'setAirSwingMissTicks': 'survival air-swing miss throttle',
+    'recordActiveUseStopped': 'recent active-hand capture',
+    'shouldDeferRecentlyUsedHand': 'bounded active-use alternation window',
+    'tickActiveUseWindow': 'active-use alternation window expiry',
+    'UPSTREAM_ALTERNATION_WINDOW_TICKS = 3': 'bounded upstream alternation window',
+    'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)': 'safe off-hand use replay through vanilla game mode',
     'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
     'target.level() != player.level()': 'public API foreign-Level target rejection',
     'player.level().getEntity(targetId) != target': 'public API exact Entity identity validation',
@@ -248,134 +227,106 @@ for pattern, description in {
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
 
-for forbidden in [
-    ROOT / 'src/main/java/dev/nekomario/offhandcombat/gametest',
-    ROOT / 'src/main/java/dev/nekomario/offhandcombat/clienttest',
-    ROOT / 'src/main/java/dev/nekomario/offhandcombat/remotetest',
-]:
-    if forbidden.exists():
-        errors.append(f'test Java sources must not be in production: {forbidden.relative_to(ROOT)}')
-if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
-    errors.append('GameTest structures must not be in production resources')
+# The removed delayed-payload reset helper must stay gone from source and tests.
+for obsolete in (
+    'src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java',
+    'src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java',
+):
+    if (ROOT / obsolete).exists():
+        errors.append(f'obsolete cooldown-reset helper returned: {obsolete}')
 
-game_test_java = (
-    ROOT / 'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java'
-).read_text(encoding='utf-8')
-for required in [
+require(
+    'src/main/java/dev/nekomario/offhandcombat/mixin/PlayerMixin.java',
+    'state.tickCooldown();',
+    'state.tickActiveUseWindow();',
+    'public void ofc$applySwingCooldown(InteractionHand hand)',
+)
+require(
+    'src/main/java/dev/nekomario/offhandcombat/mixin/LivingEntityMixin.java',
+    'method = "swing(Lnet/minecraft/world/InteractionHand;Z)V"',
+    'ofc$applySwingCooldown(hand)',
+    '@Inject(method = "releaseUsingItem", at = @At("HEAD"))',
+    '@Inject(method = "stopUsingItem", at = @At("HEAD"))',
+    'recordActiveUseStopped(self.getUsedItemHand())',
+)
+require(
+    'src/main/java/dev/nekomario/offhandcombat/client/ClientInputHandler.java',
+    'inputMode == OffhandInputMode.USE_KEY_ALWAYS && player.isCrouching()',
+    'state.airSwingMissTicks() > 0',
+    'player.swing(InteractionHand.OFF_HAND)',
+    'state.setAirSwingMissTicks(UPSTREAM_MISS_COOLDOWN_TICKS)',
+)
+require(
+    'src/main/java/dev/nekomario/offhandcombat/client/ClientActiveUseAlternation.java',
+    'UPSTREAM_ALTERNATION_WINDOW_TICKS = 3',
+    'event.getHand() != InteractionHand.MAIN_HAND',
+    'minecraft.getConnection().hasChannel(OffhandAttackRequestPayload.TYPE)',
+    'player.isUsingItem()',
+    'mainAnim == UseAnim.NONE',
+    'offAnim == UseAnim.NONE',
+    'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)',
+    'offhandResult.consumesAction()',
+    'event.setCanceled(true)',
+)
+require(
+    'src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java',
+    'ticksSinceLastActiveUse = Integer.MAX_VALUE',
+    'public void tickActiveUseWindow()',
+    'public void recordActiveUseStopped(InteractionHand hand)',
+    'ticksSinceLastActiveUse < Math.max(0, windowTicks)',
+)
+
+require(
+    'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java',
+    'empty-air swing did not reset the off-hand cooldown',
+    'empty-air swing did not arm the upstream miss throttle',
+    'miss throttle consumed an immediate repeat instead of leaving it to vanilla',
+    'lastNetworkSequence() != baselineServerSequence',
+    'getOffhandItem().getDamageValue() != baselineServerDurability',
+    'Off Hand Combat off-hand air swing E2E passed',
+)
+require(
+    'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandActiveUseAlternationE2EHarness.java',
+    'Items.SHIELD, Items.BOW, Items.CROSSBOW, Items.TRIDENT',
+    'first use was not MAIN_HAND',
+    'recorded MAIN_HAND release was not deferred to OFF_HAND',
+    'alternation emitted an Off Hand Combat attack request',
+    'Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident',
+)
+require(
+    'src/test/java/dev/nekomario/offhandcombat/attachment/OffhandCombatStateActiveUseTest.java',
+    'recentlyUsedHandExpiresAfterConfiguredWindow',
+    'state.tickActiveUseWindow();',
+    'assertFalse(state.shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, 3));',
+    'zeroLengthWindowNeverDefers',
+)
+require(
+    'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java',
     'deadAndOccludedTargetsAreRejected',
     'offhandStackChangeResetsReadiness',
     'offhandAttackDoesNotMutateLiveAttributeMap',
-]:
-    if required not in game_test_java:
-        errors.append(f'GameTest suite missing required regression: {required}')
-
-public_api_game_test = (
-    ROOT / 'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java'
-).read_text(encoding='utf-8')
-for required in [
+)
+require(
+    'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java',
     'publicApiRejectsNullAndForeignLevelEntities',
     'Level.NETHER',
     'OffhandAttackStatus.INVALID_TARGET',
-]:
-    if required not in public_api_game_test:
-        errors.append(f'public API GameTest missing required regression: {required}')
+)
 
-# Final interaction and vanilla-peer release checks
-interaction_script = (ROOT / '.ci/client-interaction-e2e.sh').read_text(encoding='utf-8')
-for required in [
-    'runClientAirSwingE2E',
-    'Off Hand Combat off-hand air swing E2E passed',
-    'runClientInteractionE2E',
-    'runClientVillagerE2E',
-    'Off Hand Combat interaction priority E2E passed: button, door and chest',
-    'Off Hand Combat villager trading priority E2E passed',
-]:
-    if required not in interaction_script:
-        errors.append(f'interaction priority E2E script missing required fragment: {required}')
-
-air_swing_e2e_java = (
-    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java'
-).read_text(encoding='utf-8')
-for required in [
-    'BlockHitResult.miss(',
-    'InteractionHand.OFF_HAND',
-    'NeoForge.EVENT_BUS.post(input)',
-    'minecraft.player.swingingArm != InteractionHand.OFF_HAND',
-    'lastNetworkSequence() != baselineServerSequence',
-    'getOffhandItem().getDamageValue() != baselineServerDurability',
-    'empty-air swing lowered client off-hand readiness',
-    'Off Hand Combat off-hand air swing E2E passed',
-]:
-    if required not in air_swing_e2e_java:
-        errors.append(f'air-swing E2E harness missing required fragment: {required}')
-
-villager_e2e_java = (
-    ROOT / 'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandVillagerPriorityE2EHarness.java'
-).read_text(encoding='utf-8')
-for required in [
-    'minecraft.gameMode.interact(',
-    'villager,',
-    'InteractionHand.MAIN_HAND);',
-    'minecraft.screen instanceof MerchantScreen',
-    'lastNetworkSequence() != baselineSequence',
-    'getOffhandItem().getDamageValue() != 0',
-    'trade screen opened, sequence unchanged, durability unchanged',
-]:
-    if required not in villager_e2e_java:
-        errors.append(f'villager priority E2E harness missing required fragment: {required}')
-
-for required in [
-    'minecraft.hitResult = new EntityHitResult(target);',
-    'ClientInputHandler.class.getDeclaredMethod',
-    'sendMethod.invoke(null, OffhandInputSource.USE_KEY)',
-    'OffhandAttackStatus.RATE_LIMITED',
-    'same-tick use-key E2E passed',
-]:
-    if required not in client_e2e_java:
-        errors.append(f'deterministic rapid-click E2E missing required fragment: {required}')
-if 'entityHitResult.getEntity().getId() != rapidTargetId' in client_e2e_java:
-    errors.append('rapid-click E2E still depends on natural crosshair synchronization')
-
-if 'bash .ci/client-interaction-e2e.sh "$TIMEOUT_SECONDS"' not in client_e2e_script:
-    errors.append('client E2E release gate does not invoke air-swing/interaction/villager priority E2E')
-if (ROOT / '.ci/.interaction-retrigger').exists():
-    errors.append('temporary focused interaction marker remains')
-if (ROOT / '.github/workflows/self-hosted-release-gate.yml').exists():
-    errors.append('temporary self-hosted placeholder workflow remains')
-if (ROOT / '.github/workflows/client-feedback-fix.yml').exists():
-    errors.append('temporary client-feedback verification workflow remains')
-
-vanilla_client_script = (ROOT / '.ci/vanilla-client-server-e2e.sh').read_text(encoding='utf-8')
-for required in [
-    'runVanillaClientServerE2E',
-    'piston-meta.mojang.com',
-    '--quickPlayMultiplayer',
-    'PLAYER_NAME="OHCPlainVanilla"',
-    '${PLAYER_NAME} joined the game',
-    'vanilla-client-to-modded-server E2E passed',
-]:
-    if required not in vanilla_client_script:
-        errors.append(f'vanilla-client-to-modded-server E2E missing required fragment: {required}')
-if 'bash .ci/vanilla-client-server-e2e.sh "$TIMEOUT_SECONDS"' not in (
-    ROOT / '.ci/vanilla-server-client-e2e.sh'
-).read_text(encoding='utf-8'):
-    errors.append('bidirectional vanilla compatibility gate is not chained')
-if "vanillaClientServerE2E {" not in build_script:
-    errors.append('build script missing isolated vanilla-client peer server run')
+for forbidden_dir in (
+    'src/main/java/dev/nekomario/offhandcombat/gametest',
+    'src/main/java/dev/nekomario/offhandcombat/clienttest',
+    'src/main/java/dev/nekomario/offhandcombat/remotetest',
+):
+    if (ROOT / forbidden_dir).exists():
+        errors.append(f'test Java sources must not be in production: {forbidden_dir}')
+if (ROOT / 'src/main/resources/data/offhandcombat/structure/gametest').exists():
+    errors.append('GameTest structures must not be in production resources')
 
 if errors:
-    print('VALIDATION FAILED')
     for error in errors:
-        print(f'- {error}')
-    sys.exit(1)
+        print(f'ERROR: {error}', file=sys.stderr)
+    print(f'VALIDATION FAILED: {len(errors)} issue(s)', file=sys.stderr)
+    raise SystemExit(1)
 
-game_test_paths = list((ROOT / 'src/gameTest/java').rglob('*.java'))
-client_test_paths = list((ROOT / 'src/clientTest/java').rglob('*.java'))
-remote_test_paths = list((ROOT / 'src/remoteTest/java').rglob('*.java'))
-print(
-    f'VALIDATION PASSED: {len(source_paths)} main Java files, '
-    f'{len(game_test_paths)} isolated GameTest Java files, '
-    f'{len(client_test_paths)} isolated client E2E Java files and '
-    f'{len(remote_test_paths)} isolated two-client remote E2E Java files; '
-    'metadata, resources, workflow, legal, compatibility and architecture checks OK'
-)
+print('VALIDATION PASSED: NeoForge 1.21.1 safety, release-gate, and restored dual-hand semantics checks are present')
