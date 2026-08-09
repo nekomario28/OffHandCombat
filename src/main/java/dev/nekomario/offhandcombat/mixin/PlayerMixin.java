@@ -40,6 +40,7 @@ public abstract class PlayerMixin extends LivingEntity implements OffhandAttackA
         OffhandCombatState state = offhandcombat$state();
         state.updateOffhandSnapshot(this.getOffhandItem());
         state.tickCooldown();
+        state.tickActiveUseWindow();
     }
 
     @WrapOperation(method = "attack",
