@@ -186,6 +186,8 @@ for pattern, description in {
     'recordActiveUseStopped': 'recent active-hand capture',
     'shouldDeferRecentlyUsedHand': 'bounded active-use alternation window',
     'tickActiveUseWindow': 'active-use alternation window expiry',
+    'ActiveUseWindow.advance': 'saturating active-use window tick',
+    'ActiveUseWindow.isOpen': 'pure active-use window predicate',
     'UPSTREAM_ALTERNATION_WINDOW_TICKS = 3': 'bounded upstream alternation window',
     'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)': 'off-hand use replay through vanilla game mode',
     'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
@@ -199,9 +201,10 @@ for pattern, description in {
 for obsolete in (
     'src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java',
     'src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java',
+    'src/test/java/dev/nekomario/offhandcombat/attachment/OffhandCombatStateActiveUseTest.java',
 ):
     if (ROOT / obsolete).exists():
-        errors.append(f'obsolete cooldown-reset helper returned: {obsolete}')
+        errors.append(f'obsolete test/helper returned: {obsolete}')
 
 require(
     'src/main/java/dev/nekomario/offhandcombat/mixin/PlayerMixin.java',
@@ -236,8 +239,16 @@ require(
     'src/main/java/dev/nekomario/offhandcombat/attachment/OffhandCombatState.java',
     'ticksSinceLastActiveUse = Integer.MAX_VALUE',
     'public void tickActiveUseWindow()',
+    'ActiveUseWindow.advance(ticksSinceLastActiveUse)',
     'public void recordActiveUseStopped(InteractionHand hand)',
-    'ticksSinceLastActiveUse < Math.max(0, windowTicks)',
+    'ActiveUseWindow.isOpen(ticksSinceLastActiveUse, windowTicks)',
+)
+require(
+    'src/main/java/dev/nekomario/offhandcombat/util/ActiveUseWindow.java',
+    'public static int advance(int ticksSinceLastUse)',
+    'ticksSinceLastUse == Integer.MAX_VALUE',
+    'public static boolean isOpen(int ticksSinceLastUse, int windowTicks)',
+    'ticksSinceLastUse < Math.max(0, windowTicks)',
 )
 require(
     'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java',
@@ -256,11 +267,12 @@ require(
     'Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident',
 )
 require(
-    'src/test/java/dev/nekomario/offhandcombat/attachment/OffhandCombatStateActiveUseTest.java',
-    'recentlyUsedHandExpiresAfterConfiguredWindow',
-    'state.tickActiveUseWindow();',
-    'assertFalse(state.shouldDeferRecentlyUsedHand(InteractionHand.MAIN_HAND, 3));',
-    'zeroLengthWindowNeverDefers',
+    'src/test/java/dev/nekomario/offhandcombat/util/ActiveUseWindowTest.java',
+    'expiresAfterConfiguredWindow',
+    'ActiveUseWindow.advance(ticks)',
+    'assertFalse(ActiveUseWindow.isOpen(ticks, 3));',
+    'zeroLengthAndExpiredSentinelStayClosed',
+    'ActiveUseWindow.advance(Integer.MAX_VALUE) == Integer.MAX_VALUE',
 )
 require(
     'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatGameTests.java',
