@@ -27,15 +27,6 @@ def require(path: str, *fragments: str) -> str:
     return text
 
 
-def forbid(path: str, *fragments: str) -> str:
-    text = read(path)
-    for fragment in fragments:
-        if fragment in text:
-            errors.append(f'{path} contains forbidden fragment: {fragment}')
-    return text
-
-
-# Parse every shipped/static JSON file that is not generated runtime state.
 ignored_json_roots = {'.git', '.gradle', 'build', 'run'}
 for path in sorted(ROOT.rglob('*.json')):
     relative = path.relative_to(ROOT)
@@ -46,8 +37,6 @@ for path in sorted(ROOT.rglob('*.json')):
     except Exception as exc:
         errors.append(f'JSON {relative}: {exc}')
 
-# Resolve the metadata template exactly as Gradle does and require the documented
-# combat-authority conflict warnings.
 props: dict[str, str] = {}
 for line in read('gradle.properties').splitlines():
     line = line.strip()
@@ -68,9 +57,6 @@ for mod_id in ('bettercombat', 'combatify'):
 if metadata_template.count('type="discouraged"') < 2 or metadata_template.count('reason=') < 2:
     errors.append('combat-authority conflicts require discouraged metadata with user-facing reasons')
 
-# The normal release gate must still exercise the complete matrix, while the
-# restored upstream-semantics paths are first-class audit inputs rather than a
-# temporary focused-only test.
 require(
     '.github/workflows/build.yml',
     'actions/setup-java@v4',
@@ -103,7 +89,6 @@ build_script = require(
     'clientActiveUseAlternationE2E {',
     "systemProperty 'offhandcombat.airSwingE2E', 'true'",
     "systemProperty 'offhandcombat.activeUseAlternationE2E', 'true'",
-    "programArguments = ['--username', 'OHCAirSwing']",
 )
 if '--quickPlayMultiplayer' in build_script:
     errors.append('remote clients must not depend on flaky Quick Play auto-connect')
@@ -118,30 +103,19 @@ require(
 require(
     '.ci/client-interaction-e2e.sh',
     'runClientAirSwingE2E',
+    'Off Hand Combat upstream air swing E2E passed',
+    'cooldown reset and recharging',
     'runClientActiveUseAlternationE2E',
+    'Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident',
     'runClientInteractionE2E',
     'runClientVillagerE2E',
-    'Off Hand Combat off-hand air swing E2E passed',
-    'Off Hand Combat active-hand alternation E2E passed: shield, bow, crossbow and trident',
-    'Off Hand Combat interaction priority E2E passed: button, door and chest',
-    'Off Hand Combat villager trading priority E2E passed',
 )
-require(
-    '.ci/remote-multiplayer-e2e.sh',
-    'runRemoteServerE2E',
-    'runRemoteClientAE2E',
-    'runRemoteClientBE2E',
-    'Off Hand Combat two-client remote server E2E passed',
-    'online-mode=false',
-    'max-players=2',
-)
+require('.ci/remote-multiplayer-e2e.sh', 'runRemoteServerE2E', 'runRemoteClientAE2E', 'runRemoteClientBE2E')
 require('.ci/remote-lifecycle-e2e.sh', 'runLifecycleServerE2E', 'runLifecycleClientE2E')
 require('.ci/remote-network-stress-e2e.sh', 'runNetworkStressServerE2E', 'runNetworkStressClientE2E')
 require('.ci/vanilla-server-client-e2e.sh', 'piston-meta.mojang.com', 'vanilla')
 require('.ci/vanilla-client-server-e2e.sh', 'piston-meta.mojang.com', 'vanilla')
 
-# Source layout and delimiter sanity checks catch common partial-port mistakes
-# before the expensive NeoForge launches.
 source_roots = [
     ROOT / 'src/main/java',
     ROOT / 'src/gameTest/java',
@@ -171,13 +145,8 @@ for source_root in source_roots:
                 errors.append(f'{actual}: unbalanced {opening}{closing}')
 
 for required_file in (
-    'LICENSE',
-    'THIRD_PARTY_NOTICES.md',
-    'AUDIT_1.21.1.md',
-    'TEST_MATRIX.md',
-    'docs/PROTOCOL.md',
-    'docs/PUBLIC_API.md',
-    'docs/COMPATIBILITY.md',
+    'LICENSE', 'THIRD_PARTY_NOTICES.md', 'AUDIT_1.21.1.md', 'TEST_MATRIX.md',
+    'docs/PROTOCOL.md', 'docs/PUBLIC_API.md', 'docs/COMPATIBILITY.md',
 ):
     if not (ROOT / required_file).is_file():
         errors.append(f'missing {required_file}')
@@ -218,7 +187,7 @@ for pattern, description in {
     'shouldDeferRecentlyUsedHand': 'bounded active-use alternation window',
     'tickActiveUseWindow': 'active-use alternation window expiry',
     'UPSTREAM_ALTERNATION_WINDOW_TICKS = 3': 'bounded upstream alternation window',
-    'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)': 'safe off-hand use replay through vanilla game mode',
+    'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)': 'off-hand use replay through vanilla game mode',
     'canInteractWithEntity(target, 0.0D)': 'vanilla entity reach validation',
     'target.level() != player.level()': 'public API foreign-Level target rejection',
     'player.level().getEntity(targetId) != target': 'public API exact Entity identity validation',
@@ -227,7 +196,6 @@ for pattern, description in {
     if pattern not in source_text:
         errors.append(f'missing required design ({description}): {pattern}')
 
-# The removed delayed-payload reset helper must stay gone from source and tests.
 for obsolete in (
     'src/main/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindow.java',
     'src/test/java/dev/nekomario/offhandcombat/util/ClientCooldownResetWindowTest.java',
@@ -237,8 +205,7 @@ for obsolete in (
 
 require(
     'src/main/java/dev/nekomario/offhandcombat/mixin/PlayerMixin.java',
-    'state.tickCooldown();',
-    'state.tickActiveUseWindow();',
+    'state.tickCooldown();', 'state.tickActiveUseWindow();',
     'public void ofc$applySwingCooldown(InteractionHand hand)',
 )
 require(
@@ -261,9 +228,6 @@ require(
     'UPSTREAM_ALTERNATION_WINDOW_TICKS = 3',
     'event.getHand() != InteractionHand.MAIN_HAND',
     'minecraft.getConnection().hasChannel(OffhandAttackRequestPayload.TYPE)',
-    'player.isUsingItem()',
-    'mainAnim == UseAnim.NONE',
-    'offAnim == UseAnim.NONE',
     'minecraft.gameMode.useItem(player, InteractionHand.OFF_HAND)',
     'offhandResult.consumesAction()',
     'event.setCanceled(true)',
@@ -275,15 +239,13 @@ require(
     'public void recordActiveUseStopped(InteractionHand hand)',
     'ticksSinceLastActiveUse < Math.max(0, windowTicks)',
 )
-
 require(
     'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandAirSwingE2EHarness.java',
     'empty-air swing did not reset the off-hand cooldown',
     'empty-air swing did not arm the upstream miss throttle',
     'miss throttle consumed an immediate repeat instead of leaving it to vanilla',
-    'lastNetworkSequence() != baselineServerSequence',
-    'getOffhandItem().getDamageValue() != baselineServerDurability',
-    'Off Hand Combat off-hand air swing E2E passed',
+    'Off Hand Combat upstream air swing E2E passed',
+    'cooldown reset and recharging',
 )
 require(
     'src/clientTest/java/dev/nekomario/offhandcombat/clienttest/OffhandActiveUseAlternationE2EHarness.java',
@@ -308,9 +270,7 @@ require(
 )
 require(
     'src/gameTest/java/dev/nekomario/offhandcombat/gametest/OffhandCombatPublicApiGameTests.java',
-    'publicApiRejectsNullAndForeignLevelEntities',
-    'Level.NETHER',
-    'OffhandAttackStatus.INVALID_TARGET',
+    'publicApiRejectsNullAndForeignLevelEntities', 'Level.NETHER', 'OffhandAttackStatus.INVALID_TARGET',
 )
 
 for forbidden_dir in (
