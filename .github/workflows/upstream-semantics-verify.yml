@@ -29,6 +29,11 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y xvfb
           fi
+      - name: Capture tracked-file SHA-256 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files -z | xargs -0 sha256sum | sort -k2 | tee full-manifest.sha256
       - name: Compile, unit test and build
         shell: bash
         run: gradle --no-daemon clean test compileClientTestJava build --stacktrace
@@ -51,6 +56,7 @@ jobs:
         with:
           name: upstream-semantics-${{ github.sha }}
           path: |
+            full-manifest.sha256
             build/libs/*.jar
             gametest.log
             client-smoke.log
