@@ -13,6 +13,10 @@ public final class OffhandCombatState {
     private int airSwingMissTicks;
     private int ticksSinceLastActiveUse = Integer.MAX_VALUE;
     private @Nullable InteractionHand lastActiveUseHand;
+    private boolean auxiliarySwinging;
+    private int auxiliarySwingTime;
+    private int auxiliarySwingDuration;
+    private @Nullable InteractionHand auxiliarySwingHand;
     private long lastAcceptedRequestTick = Long.MIN_VALUE;
     private final SequenceWindow networkSequences = new SequenceWindow();
     private long nextClientSequence = 1L;
@@ -34,6 +38,51 @@ public final class OffhandCombatState {
 
     public void tickActiveUseWindow() {
         ticksSinceLastActiveUse = ActiveUseWindow.advance(ticksSinceLastActiveUse);
+    }
+
+    public void captureAuxiliarySwing(InteractionHand hand, int swingTime, int swingDuration) {
+        if (swingDuration <= 0) {
+            clearAuxiliarySwing();
+            return;
+        }
+        auxiliarySwinging = true;
+        auxiliarySwingHand = hand;
+        auxiliarySwingTime = Math.max(-1, swingTime);
+        auxiliarySwingDuration = swingDuration;
+    }
+
+    public void tickAuxiliarySwing() {
+        if (!auxiliarySwinging) {
+            return;
+        }
+        auxiliarySwingTime++;
+        if (auxiliarySwingTime >= auxiliarySwingDuration) {
+            clearAuxiliarySwing();
+        }
+    }
+
+    public boolean hasAuxiliarySwing() {
+        return auxiliarySwinging;
+    }
+
+    public boolean hasAuxiliarySwing(InteractionHand hand) {
+        return auxiliarySwinging && auxiliarySwingHand == hand;
+    }
+
+    public float auxiliarySwingProgress(InteractionHand hand, float partialTick) {
+        if (!hasAuxiliarySwing(hand) || auxiliarySwingDuration <= 0) {
+            return 0.0F;
+        }
+        float partial = Math.max(0.0F, Math.min(1.0F, partialTick));
+        float progress = (auxiliarySwingTime + partial) / (float) auxiliarySwingDuration;
+        return Math.max(0.0F, Math.min(1.0F, progress));
+    }
+
+    private void clearAuxiliarySwing() {
+        auxiliarySwinging = false;
+        auxiliarySwingTime = 0;
+        auxiliarySwingDuration = 0;
+        auxiliarySwingHand = null;
     }
 
     public int offhandAttackStrengthTicker() {
