@@ -235,24 +235,21 @@ tasks.named('processResources', ProcessResources).configure {
 tasks.named('jar', Jar).configure {
     exclude 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
     exclude 'dev/nekomario/offhandcombat/client/ClientModEvents$*.class'
-}
-
-var verifyDistributableJarContents = tasks.register('verifyDistributableJarContents') {
-    dependsOn tasks.named('jar')
     doLast {
-        var jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
-        var forbidden = zipTree(jarFile).matching {
-            include 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
-            include 'dev/nekomario/offhandcombat/client/ClientModEvents$*.class'
-        }.files
-        if (!forbidden.isEmpty()) {
-            throw new GradleException("Test-only ClientModEvents leaked into distributable JAR: ${forbidden}")
+        var leaked = []
+        new java.util.zip.ZipFile(archiveFile.get().asFile).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (entry.name == 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
+                        || (entry.name.startsWith('dev/nekomario/offhandcombat/client/ClientModEvents$')
+                        && entry.name.endsWith('.class'))) {
+                    leaked.add(entry.name)
+                }
+            }
+        }
+        if (!leaked.isEmpty()) {
+            throw new GradleException("Test-only ClientModEvents leaked into distributable JAR: ${leaked}")
         }
     }
-}
-
-tasks.named('check').configure {
-    dependsOn verifyDistributableJarContents
 }
 
 tasks.withType(JavaCompile).configureEach {
