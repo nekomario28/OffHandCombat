@@ -3,18 +3,31 @@ package dev.nekomario.offhandcombat.mixin;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.combat.OffhandWeaponRules;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin {
+    @Shadow
+    public boolean swinging;
+    @Shadow
+    public int swingTime;
+    @Shadow
+    public @Nullable InteractionHand swingingArm;
+
+    @Shadow
+    protected abstract int getCurrentSwingDuration();
+
     @ModifyReturnValue(method = "getWeaponItem", at = @At("RETURN"))
     private ItemStack offhandcombat$useOffhandWeapon(ItemStack original) {
         if ((Object) this instanceof Player player
@@ -22,6 +35,31 @@ public abstract class LivingEntityMixin {
             return player.getOffhandItem();
         }
         return original;
+    }
+
+    @Inject(method = "swing(Lnet/minecraft/world/InteractionHand;Z)V", at = @At("HEAD"))
+    private void offhandcombat$captureInterruptedSwing(InteractionHand hand, boolean updateSelf, CallbackInfo ci) {
+        if (!((Object) this instanceof Player player)
+                || !player.level().isClientSide
+                || !OffhandWeaponRules.evaluate(player, player.getOffhandItem()).eligible()) {
+            return;
+        }
+        int duration = getCurrentSwingDuration();
+        if (swinging
+                && swingingArm != null
+                && swingingArm != hand
+                && swingTime >= 0
+                && swingTime < duration / 2) {
+            player.getData(OffhandCombatAttachments.COMBAT_STATE)
+                    .captureAuxiliarySwing(swingingArm, swingTime, duration);
+        }
+    }
+
+    @Inject(method = "updateSwingTime", at = @At("HEAD"))
+    private void offhandcombat$tickAuxiliarySwing(CallbackInfo ci) {
+        if ((Object) this instanceof Player player && player.level().isClientSide) {
+            player.getData(OffhandCombatAttachments.COMBAT_STATE).tickAuxiliarySwing();
+        }
     }
 
     @Inject(
