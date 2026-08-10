@@ -48,7 +48,6 @@ public abstract class LivingEntityMixin {
         if (swinging
                 && swingingArm != null
                 && swingingArm != hand
-                && swingTime >= 0
                 && swingTime < duration / 2) {
             player.getData(OffhandCombatAttachments.COMBAT_STATE)
                     .captureAuxiliarySwing(swingingArm, swingTime, duration);
