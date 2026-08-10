@@ -237,6 +237,24 @@ tasks.named('jar', Jar).configure {
     exclude 'dev/nekomario/offhandcombat/client/ClientModEvents$*.class'
 }
 
+var verifyDistributableJarContents = tasks.register('verifyDistributableJarContents') {
+    dependsOn tasks.named('jar')
+    doLast {
+        var jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        var forbidden = zipTree(jarFile).matching {
+            include 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
+            include 'dev/nekomario/offhandcombat/client/ClientModEvents$*.class'
+        }.files
+        if (!forbidden.isEmpty()) {
+            throw new GradleException("Test-only ClientModEvents leaked into distributable JAR: ${forbidden}")
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn verifyDistributableJarContents
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 21
