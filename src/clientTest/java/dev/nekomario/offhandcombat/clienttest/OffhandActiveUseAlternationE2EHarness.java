@@ -5,6 +5,7 @@ import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatState;
 import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.UUID;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
@@ -150,7 +151,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
             return;
         }
         pointAtMiss(minecraft);
-        minecraft.options.keyUse.setDown(true);
+        pressUseKey(minecraft);
         deadline = clientTicks + PHASE_TIMEOUT_TICKS;
         phase = Phase.WAIT_MAIN;
     }
@@ -197,7 +198,7 @@ public final class OffhandActiveUseAlternationE2EHarness {
             return;
         }
         pointAtMiss(minecraft);
-        minecraft.options.keyUse.setDown(true);
+        pressUseKey(minecraft);
         deadline = clientTicks + PHASE_TIMEOUT_TICKS;
         phase = Phase.WAIT_OFF;
     }
@@ -282,6 +283,11 @@ public final class OffhandActiveUseAlternationE2EHarness {
         Vec3 view = minecraft.player.getViewVector(1.0F);
         Vec3 point = minecraft.player.getEyePosition().add(view.scale(5.0D));
         minecraft.hitResult = BlockHitResult.miss(point, Direction.getNearest(view), minecraft.player.blockPosition());
+    }
+
+    private static void pressUseKey(Minecraft minecraft) {
+        minecraft.options.keyUse.setDown(true);
+        KeyMapping.click(minecraft.options.keyUse.getKey());
     }
 
     private static void timeout(String context) {
