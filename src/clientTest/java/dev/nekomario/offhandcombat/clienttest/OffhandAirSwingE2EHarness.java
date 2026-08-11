@@ -39,6 +39,8 @@ public final class OffhandAirSwingE2EHarness {
     private static int dualSwingTriggeredAtTick;
     private static float observedMainProgress;
     private static float observedOffProgress;
+    private static float observedReverseMainProgress;
+    private static float observedReverseOffProgress;
 
     private OffhandAirSwingE2EHarness() {
     }
@@ -65,6 +67,9 @@ public final class OffhandAirSwingE2EHarness {
                 case WAITING_FOR_DUAL_SWING_SYNC -> triggerDualSwingWhenSynchronized(minecraft);
                 case WAITING_FOR_DUAL_SWING_PROGRESS -> verifyDualSwingProgress(minecraft);
                 case WAITING_FOR_DUAL_SWING_COMPLETE -> verifyDualSwingCompletion(minecraft);
+                case WAITING_FOR_REVERSE_DUAL_SWING_SYNC -> triggerReverseDualSwingWhenSynchronized(minecraft);
+                case WAITING_FOR_REVERSE_DUAL_SWING_PROGRESS -> verifyReverseDualSwingProgress(minecraft);
+                case WAITING_FOR_REVERSE_DUAL_SWING_COMPLETE -> verifyReverseDualSwingCompletion(minecraft);
                 default -> {
                 }
             }
@@ -330,16 +335,108 @@ public final class OffhandAirSwingE2EHarness {
         }
         var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
         if (!state.hasAuxiliarySwing() && !minecraft.player.swinging) {
-            phase = Phase.PASSED;
-            OffHandCombat.LOGGER.info(
-                    "Off Hand Combat upstream air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging; independent dual-hand swing progress observed MAIN_HAND={} OFF_HAND={} and both completed",
-                    observedMainProgress,
-                    observedOffProgress);
+            phase = Phase.WAITING_FOR_REVERSE_DUAL_SWING_SYNC;
             return;
         }
 
         if (clientTicks - dualSwingTriggeredAtTick > DUAL_COMPLETION_DEADLINE_TICKS) {
             fail("dual-hand swing state did not complete: auxiliary=" + state.hasAuxiliarySwing()
+                    + ", vanillaSwinging=" + minecraft.player.swinging
+                    + ", vanillaHand=" + minecraft.player.swingingArm);
+        }
+    }
+
+    private static void triggerReverseDualSwingWhenSynchronized(Minecraft minecraft) {
+        if (minecraft.level == null
+                || minecraft.player == null
+                || minecraft.screen != null
+                || !minecraft.player.getMainHandItem().is(Items.IRON_SWORD)
+                || !minecraft.player.getOffhandItem().is(Items.IRON_SWORD)) {
+            return;
+        }
+
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (minecraft.player.swinging || state.hasAuxiliarySwing()) {
+            return;
+        }
+
+        minecraft.player.swing(InteractionHand.OFF_HAND, false);
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.OFF_HAND) {
+            fail("reverse dual-swing setup did not start the off-hand swing");
+            return;
+        }
+
+        minecraft.player.swing(InteractionHand.MAIN_HAND, false);
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.MAIN_HAND) {
+            fail("reverse opposite-hand interruption did not move vanilla swing state to MAIN_HAND");
+            return;
+        }
+        if (!state.hasAuxiliarySwing(InteractionHand.OFF_HAND)) {
+            fail("reverse opposite-hand interruption did not preserve OFF_HAND as an auxiliary swing");
+            return;
+        }
+
+        dualSwingTriggeredAtTick = clientTicks;
+        phase = Phase.WAITING_FOR_REVERSE_DUAL_SWING_PROGRESS;
+    }
+
+    private static void verifyReverseDualSwingProgress(Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return;
+        }
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (!state.hasAuxiliarySwing(InteractionHand.OFF_HAND)) {
+            fail("auxiliary OFF_HAND swing ended before reverse simultaneous progress was observed");
+            return;
+        }
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.MAIN_HAND) {
+            fail("vanilla MAIN_HAND swing ended before reverse simultaneous progress was observed");
+            return;
+        }
+
+        float partialTick = 0.5F;
+        float vanillaMainProgress = minecraft.player.getAttackAnim(partialTick);
+        float mainProgress = ClientDualSwingProgress.resolve(
+                minecraft.player, InteractionHand.MAIN_HAND, vanillaMainProgress, partialTick);
+        float offProgress = ClientDualSwingProgress.resolve(
+                minecraft.player, InteractionHand.OFF_HAND, 0.0F, partialTick);
+
+        if (mainProgress > 0.0F && offProgress > 0.0F) {
+            if (Math.abs(mainProgress - vanillaMainProgress) > 0.0001F) {
+                fail("active MAIN_HAND renderer progress was unexpectedly replaced: vanilla="
+                        + vanillaMainProgress + ", resolved=" + mainProgress);
+                return;
+            }
+            observedReverseMainProgress = mainProgress;
+            observedReverseOffProgress = offProgress;
+            phase = Phase.WAITING_FOR_REVERSE_DUAL_SWING_COMPLETE;
+            return;
+        }
+
+        if (clientTicks - dualSwingTriggeredAtTick > DUAL_PROGRESS_DEADLINE_TICKS) {
+            fail("reverse dual-hand renderer progress never became simultaneous: main="
+                    + mainProgress + ", off=" + offProgress);
+        }
+    }
+
+    private static void verifyReverseDualSwingCompletion(Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return;
+        }
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (!state.hasAuxiliarySwing() && !minecraft.player.swinging) {
+            phase = Phase.PASSED;
+            OffHandCombat.LOGGER.info(
+                    "Off Hand Combat upstream air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging; independent dual-hand swing progress observed MAIN->OFF MAIN_HAND={} OFF_HAND={} and OFF->MAIN MAIN_HAND={} OFF_HAND={}, both directions completed",
+                    observedMainProgress,
+                    observedOffProgress,
+                    observedReverseMainProgress,
+                    observedReverseOffProgress);
+            return;
+        }
+
+        if (clientTicks - dualSwingTriggeredAtTick > DUAL_COMPLETION_DEADLINE_TICKS) {
+            fail("reverse dual-hand swing state did not complete: auxiliary=" + state.hasAuxiliarySwing()
                     + ", vanillaSwinging=" + minecraft.player.swinging
                     + ", vanillaHand=" + minecraft.player.swingingArm);
         }
@@ -369,6 +466,9 @@ public final class OffhandAirSwingE2EHarness {
         WAITING_FOR_DUAL_SWING_SYNC,
         WAITING_FOR_DUAL_SWING_PROGRESS,
         WAITING_FOR_DUAL_SWING_COMPLETE,
+        WAITING_FOR_REVERSE_DUAL_SWING_SYNC,
+        WAITING_FOR_REVERSE_DUAL_SWING_PROGRESS,
+        WAITING_FOR_REVERSE_DUAL_SWING_COMPLETE,
         PASSED,
         FAILED
     }
