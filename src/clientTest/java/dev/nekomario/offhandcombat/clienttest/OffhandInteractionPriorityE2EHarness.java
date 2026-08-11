@@ -63,6 +63,8 @@ public final class OffhandInteractionPriorityE2EHarness {
                 case OPENING_WORLD -> setupWhenReady(minecraft);
                 case WAITING_FOR_BUTTON_SYNC -> triggerBlockUse(minecraft, Blocks.STONE_BUTTON, "button");
                 case WAITING_FOR_BUTTON_RESULT -> verifyButton(minecraft);
+                case WAITING_FOR_LEVER_SYNC -> triggerBlockUse(minecraft, Blocks.LEVER, "lever");
+                case WAITING_FOR_LEVER_RESULT -> verifyLever(minecraft);
                 case WAITING_FOR_DOOR_SYNC -> triggerBlockUse(minecraft, Blocks.OAK_DOOR, "door");
                 case WAITING_FOR_DOOR_RESULT -> verifyDoor(minecraft);
                 case WAITING_FOR_CHEST_SYNC -> triggerBlockUse(minecraft, Blocks.CHEST, "chest");
@@ -139,12 +141,38 @@ public final class OffhandInteractionPriorityE2EHarness {
                 && minecraft.level.getBlockState(interactionPos).is(Blocks.STONE_BUTTON)
                 && minecraft.level.getBlockState(interactionPos).getValue(BlockStateProperties.POWERED)) {
             verifyServerAndAdvance(minecraft, "button", player -> {
+                setupLever(player);
+                phase = Phase.WAITING_FOR_LEVER_SYNC;
+            });
+            return;
+        }
+        failOnDeadline("button did not become powered");
+    }
+
+    private static void setupLever(ServerPlayer player) {
+        clearArea(player);
+        player.serverLevel().setBlockAndUpdate(
+                interactionPos.relative(Direction.SOUTH), Blocks.STONE.defaultBlockState());
+        BlockState lever = Blocks.LEVER.defaultBlockState()
+                .setValue(BlockStateProperties.ATTACH_FACE, AttachFace.WALL)
+                .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
+                .setValue(BlockStateProperties.POWERED, false);
+        player.serverLevel().setBlockAndUpdate(interactionPos, lever);
+        interactionPoint = Vec3.atCenterOf(interactionPos).add(0.0D, 0.0D, -0.43D);
+        deadline = clientTicks + SYNC_TIMEOUT_TICKS;
+    }
+
+    private static void verifyLever(Minecraft minecraft) {
+        if (minecraft.level != null
+                && minecraft.level.getBlockState(interactionPos).is(Blocks.LEVER)
+                && minecraft.level.getBlockState(interactionPos).getValue(BlockStateProperties.POWERED)) {
+            verifyServerAndAdvance(minecraft, "lever", player -> {
                 setupDoor(player);
                 phase = Phase.WAITING_FOR_DOOR_SYNC;
             });
             return;
         }
-        failOnDeadline("button did not become powered");
+        failOnDeadline("lever did not become powered");
     }
 
     private static void setupDoor(ServerPlayer player) {
@@ -188,7 +216,7 @@ public final class OffhandInteractionPriorityE2EHarness {
                 player.closeContainer();
                 phase = Phase.PASSED;
                 OffHandCombat.LOGGER.info(
-                        "Off Hand Combat interaction priority E2E passed: button, door and chest");
+                        "Off Hand Combat interaction priority E2E passed: button, lever, door and chest");
             });
             return;
         }
@@ -197,7 +225,13 @@ public final class OffhandInteractionPriorityE2EHarness {
 
     private static void triggerBlockUse(Minecraft minecraft, Block expectedBlock, String interaction) {
         if (minecraft.level == null || minecraft.player == null || minecraft.gameMode == null
-                || interactionPos == null || interactionPoint == null || minecraft.screen != null) {
+                || interactionPos == null || interactionPoint == null) {
+            failOnDeadline(interaction + " interaction prerequisites were unavailable");
+            return;
+        }
+        if (minecraft.screen != null) {
+            failOnDeadline(interaction + " interaction remained blocked by screen "
+                    + minecraft.screen.getClass().getSimpleName());
             return;
         }
         if (!minecraft.level.getBlockState(interactionPos).is(expectedBlock)) {
@@ -216,6 +250,7 @@ public final class OffhandInteractionPriorityE2EHarness {
         deadline = clientTicks + RESULT_TIMEOUT_TICKS;
         phase = switch (phase) {
             case WAITING_FOR_BUTTON_SYNC -> Phase.WAITING_FOR_BUTTON_RESULT;
+            case WAITING_FOR_LEVER_SYNC -> Phase.WAITING_FOR_LEVER_RESULT;
             case WAITING_FOR_DOOR_SYNC -> Phase.WAITING_FOR_DOOR_RESULT;
             case WAITING_FOR_CHEST_SYNC -> Phase.WAITING_FOR_CHEST_RESULT;
             default -> throw new IllegalStateException("unexpected interaction phase " + phase);
@@ -302,6 +337,8 @@ public final class OffhandInteractionPriorityE2EHarness {
         SETTING_UP,
         WAITING_FOR_BUTTON_SYNC,
         WAITING_FOR_BUTTON_RESULT,
+        WAITING_FOR_LEVER_SYNC,
+        WAITING_FOR_LEVER_RESULT,
         WAITING_FOR_DOOR_SYNC,
         WAITING_FOR_DOOR_RESULT,
         WAITING_FOR_CHEST_SYNC,
