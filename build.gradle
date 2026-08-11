@@ -232,6 +232,26 @@ tasks.named('processResources', ProcessResources).configure {
     from('LICENSE')
 }
 
+tasks.named('jar', Jar).configure {
+    exclude 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
+    exclude 'dev/nekomario/offhandcombat/client/ClientModEvents$*.class'
+    doLast {
+        var leaked = []
+        new java.util.zip.ZipFile(archiveFile.get().asFile).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (entry.name == 'dev/nekomario/offhandcombat/client/ClientModEvents.class'
+                        || (entry.name.startsWith('dev/nekomario/offhandcombat/client/ClientModEvents$')
+                        && entry.name.endsWith('.class'))) {
+                    leaked.add(entry.name)
+                }
+            }
+        }
+        if (!leaked.isEmpty()) {
+            throw new GradleException("Test-only ClientModEvents leaked into distributable JAR: ${leaked}")
+        }
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 21
