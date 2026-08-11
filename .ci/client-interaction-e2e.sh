@@ -128,3 +128,12 @@ run_client_e2e \
   client-villager-e2e.log \
   "Off Hand Combat villager trading priority E2E passed" \
   "Off Hand Combat villager trading priority E2E failed"
+
+run_client_e2e \
+  HurtImmunityWorld \
+  runClientHurtImmunityInputE2E \
+  client-hurt-immunity-input-e2e.log \
+  "Off Hand Combat rapid alternating physical-input hurt-immunity E2E passed" \
+  "Off Hand Combat rapid alternating physical-input hurt-immunity E2E failed"
+
+grep -F "offhandStatus=SUCCESS, offhandDurability=0" client-hurt-immunity-input-e2e.log
