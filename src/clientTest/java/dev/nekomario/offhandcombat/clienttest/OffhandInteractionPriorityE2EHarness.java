@@ -35,12 +35,14 @@ public final class OffhandInteractionPriorityE2EHarness {
     private static final int TIMEOUT_CLIENT_TICKS = 1200;
     private static final int SYNC_TIMEOUT_TICKS = 200;
     private static final int RESULT_TIMEOUT_TICKS = 80;
+    private static final int WORLD_READY_TICKS = 5;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile BlockPos interactionPos;
     private static volatile Vec3 interactionPoint;
     private static volatile long baselineSequence;
     private static int clientTicks;
+    private static int readyTicks;
     private static int deadline;
 
     private OffhandInteractionPriorityE2EHarness() {
@@ -96,9 +98,23 @@ public final class OffhandInteractionPriorityE2EHarness {
     }
 
     private static void setupWhenReady(Minecraft minecraft) {
-        if (minecraft.level == null || minecraft.player == null || minecraft.getSingleplayerServer() == null) {
+        if (minecraft.level == null
+                || minecraft.player == null
+                || minecraft.getConnection() == null
+                || minecraft.getSingleplayerServer() == null) {
+            readyTicks = 0;
             return;
         }
+        BlockPos candidatePos = minecraft.player.blockPosition().above().relative(Direction.SOUTH, 2);
+        if (!minecraft.level.hasChunkAt(candidatePos)) {
+            readyTicks = 0;
+            return;
+        }
+        if (++readyTicks < WORLD_READY_TICKS) {
+            return;
+        }
+
+        interactionPos = candidatePos;
         phase = Phase.SETTING_UP;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
@@ -113,8 +129,6 @@ public final class OffhandInteractionPriorityE2EHarness {
                 player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                 player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
                 baselineSequence = player.getData(OffhandCombatAttachments.COMBAT_STATE).lastNetworkSequence();
-                // Legacy rerun anchor: interactionPos = player.blockPosition().offset(0, 2, 2);
-                interactionPos = player.blockPosition().above().relative(Direction.SOUTH, 2);
                 setupButton(player);
                 phase = Phase.WAITING_FOR_BUTTON_SYNC;
             } catch (Throwable throwable) {
