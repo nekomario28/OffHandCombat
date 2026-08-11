@@ -114,10 +114,11 @@ run_client_e2e \
   InteractionWorld \
   runClientInteractionE2E \
   client-interaction-e2e.log \
-  "Off Hand Combat interaction priority E2E passed: button, door and chest" \
+  "Off Hand Combat interaction priority E2E passed: button, lever, door and chest" \
   "Off Hand Combat interaction priority E2E failed"
 
 grep -F "Off Hand Combat interaction priority E2E passed for button" client-interaction-e2e.log
+grep -F "Off Hand Combat interaction priority E2E passed for lever" client-interaction-e2e.log
 grep -F "Off Hand Combat interaction priority E2E passed for door" client-interaction-e2e.log
 grep -F "Off Hand Combat interaction priority E2E passed for chest" client-interaction-e2e.log
 
