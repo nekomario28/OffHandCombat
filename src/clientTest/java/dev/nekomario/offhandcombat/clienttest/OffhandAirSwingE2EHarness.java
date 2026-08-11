@@ -3,6 +3,7 @@ package dev.nekomario.offhandcombat.clienttest;
 import dev.nekomario.offhandcombat.OffHandCombat;
 import dev.nekomario.offhandcombat.api.OffhandAttackAccess;
 import dev.nekomario.offhandcombat.attachment.OffhandCombatAttachments;
+import dev.nekomario.offhandcombat.client.ClientDualSwingProgress;
 import dev.nekomario.offhandcombat.network.OffhandAttackRequestPayload;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -27,12 +28,17 @@ public final class OffhandAirSwingE2EHarness {
     private static final String WORLD_NAME = "AirSwingWorld";
     private static final int TIMEOUT_CLIENT_TICKS = 1200;
     private static final int VERIFY_DELAY_TICKS = 8;
+    private static final int DUAL_PROGRESS_DEADLINE_TICKS = 5;
+    private static final int DUAL_COMPLETION_DEADLINE_TICKS = 24;
 
     private static volatile Phase phase = Phase.WAITING_FOR_WORLD;
     private static volatile long baselineServerSequence;
     private static volatile int baselineServerDurability;
     private static int clientTicks;
     private static int verifyAtTick;
+    private static int dualSwingTriggeredAtTick;
+    private static float observedMainProgress;
+    private static float observedOffProgress;
 
     private OffhandAirSwingE2EHarness() {
     }
@@ -56,6 +62,9 @@ public final class OffhandAirSwingE2EHarness {
                 case OPENING_WORLD -> setupWhenReady(minecraft);
                 case WAITING_FOR_SYNC -> triggerAirSwingWhenSynchronized(minecraft);
                 case WAITING_FOR_VERIFY -> verifyAfterDelay(minecraft);
+                case WAITING_FOR_DUAL_SWING_SYNC -> triggerDualSwingWhenSynchronized(minecraft);
+                case WAITING_FOR_DUAL_SWING_PROGRESS -> verifyDualSwingProgress(minecraft);
+                case WAITING_FOR_DUAL_SWING_COMPLETE -> verifyDualSwingCompletion(minecraft);
                 default -> {
                 }
             }
@@ -233,13 +242,107 @@ public final class OffhandAirSwingE2EHarness {
                     return;
                 }
 
-                phase = Phase.PASSED;
-                OffHandCombat.LOGGER.info(
-                        "Off Hand Combat upstream air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging");
+                player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_SWORD));
+                player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_SWORD));
+                phase = Phase.WAITING_FOR_DUAL_SWING_SYNC;
             } catch (Throwable throwable) {
                 fail("air-swing server verification exception", throwable);
             }
         });
+    }
+
+    private static void triggerDualSwingWhenSynchronized(Minecraft minecraft) {
+        if (minecraft.level == null
+                || minecraft.player == null
+                || minecraft.screen != null
+                || !minecraft.player.getMainHandItem().is(Items.IRON_SWORD)
+                || !minecraft.player.getOffhandItem().is(Items.IRON_SWORD)) {
+            return;
+        }
+
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (minecraft.player.swinging || state.hasAuxiliarySwing()) {
+            return;
+        }
+
+        minecraft.player.swing(InteractionHand.MAIN_HAND, false);
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.MAIN_HAND) {
+            fail("dual-swing setup did not start the main-hand swing");
+            return;
+        }
+
+        minecraft.player.swing(InteractionHand.OFF_HAND, false);
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.OFF_HAND) {
+            fail("opposite-hand interruption did not move vanilla swing state to OFF_HAND");
+            return;
+        }
+        if (!state.hasAuxiliarySwing(InteractionHand.MAIN_HAND)) {
+            fail("opposite-hand interruption did not preserve MAIN_HAND as an auxiliary swing");
+            return;
+        }
+
+        dualSwingTriggeredAtTick = clientTicks;
+        phase = Phase.WAITING_FOR_DUAL_SWING_PROGRESS;
+    }
+
+    private static void verifyDualSwingProgress(Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return;
+        }
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (!state.hasAuxiliarySwing(InteractionHand.MAIN_HAND)) {
+            fail("auxiliary MAIN_HAND swing ended before simultaneous progress was observed");
+            return;
+        }
+        if (!minecraft.player.swinging || minecraft.player.swingingArm != InteractionHand.OFF_HAND) {
+            fail("vanilla OFF_HAND swing ended before simultaneous progress was observed");
+            return;
+        }
+
+        float partialTick = 0.5F;
+        float vanillaOffProgress = minecraft.player.getAttackAnim(partialTick);
+        float mainProgress = ClientDualSwingProgress.resolve(
+                minecraft.player, InteractionHand.MAIN_HAND, 0.0F, partialTick);
+        float offProgress = ClientDualSwingProgress.resolve(
+                minecraft.player, InteractionHand.OFF_HAND, vanillaOffProgress, partialTick);
+
+        if (mainProgress > 0.0F && offProgress > 0.0F) {
+            if (Math.abs(offProgress - vanillaOffProgress) > 0.0001F) {
+                fail("active OFF_HAND renderer progress was unexpectedly replaced: vanilla="
+                        + vanillaOffProgress + ", resolved=" + offProgress);
+                return;
+            }
+            observedMainProgress = mainProgress;
+            observedOffProgress = offProgress;
+            phase = Phase.WAITING_FOR_DUAL_SWING_COMPLETE;
+            return;
+        }
+
+        if (clientTicks - dualSwingTriggeredAtTick > DUAL_PROGRESS_DEADLINE_TICKS) {
+            fail("dual-hand renderer progress never became simultaneous: main="
+                    + mainProgress + ", off=" + offProgress);
+        }
+    }
+
+    private static void verifyDualSwingCompletion(Minecraft minecraft) {
+        if (minecraft.player == null) {
+            return;
+        }
+        var state = minecraft.player.getData(OffhandCombatAttachments.COMBAT_STATE);
+        if (!state.hasAuxiliarySwing() && !minecraft.player.swinging) {
+            phase = Phase.PASSED;
+            OffHandCombat.LOGGER.info(
+                    "Off Hand Combat upstream air swing E2E passed: animation=OFF_HAND, sequence unchanged, durability unchanged, cooldown reset and recharging; independent dual-hand swing progress observed MAIN_HAND={} OFF_HAND={} and both completed",
+                    observedMainProgress,
+                    observedOffProgress);
+            return;
+        }
+
+        if (clientTicks - dualSwingTriggeredAtTick > DUAL_COMPLETION_DEADLINE_TICKS) {
+            fail("dual-hand swing state did not complete: auxiliary=" + state.hasAuxiliarySwing()
+                    + ", vanillaSwinging=" + minecraft.player.swinging
+                    + ", vanillaHand=" + minecraft.player.swingingArm);
+        }
     }
 
     private static void fail(String reason) {
@@ -263,6 +366,9 @@ public final class OffhandAirSwingE2EHarness {
         WAITING_FOR_SYNC,
         WAITING_FOR_VERIFY,
         VERIFYING_SERVER,
+        WAITING_FOR_DUAL_SWING_SYNC,
+        WAITING_FOR_DUAL_SWING_PROGRESS,
+        WAITING_FOR_DUAL_SWING_COMPLETE,
         PASSED,
         FAILED
     }
