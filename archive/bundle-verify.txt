@@ -1,0 +1,5 @@
+offhandcombat-public-historical-branches-20260818.bundle is okay
+The bundle contains this ref:
+91950ffc320de77ccce80e5336a63f358657b289 refs/heads/tmp-stress-batch
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1
